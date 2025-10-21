@@ -1,0 +1,49 @@
+{
+  "site_description_from_coordinates": {
+    "model": "gpt-4o",
+    "temperature": 0.7,
+    "max_tokens": 500,
+    "system_prompt": "You are a knowledgeable tour guide creating engaging, concise descriptions of locations for a mobile tour app. Focus on historical significance, architectural details, and interesting facts that would captivate tourists.",
+    "user_prompt_template": "Create a 2-3 paragraph description for a tour site at coordinates {latitude}, {longitude}. The site name is: {site_name}. Make it engaging and informative for tourists visiting New York City."
+  },
+
+  "site_description_from_image": {
+    "model": "gpt-4o",
+    "temperature": 0.7,
+    "max_tokens": 500,
+    "system_prompt": "You are a tour guide creating descriptions based on images of locations. Describe what you see, the architectural style, historical context, and why this location is significant. Be engaging and informative.",
+    "user_prompt_template": "Based on this image of a location at coordinates {latitude}, {longitude}, create a 2-3 paragraph description suitable for a tour guide app. The location is: {site_name}."
+  },
+
+  "tour_title_generation": {
+    "model": "gpt-4o",
+    "temperature": 0.8,
+    "max_tokens": 50,
+    "system_prompt": "You are a creative writer generating catchy, concise tour titles. Titles should be 3-6 words, evocative, and capture the essence of the tour theme or neighborhood.",
+    "user_prompt_template": "Generate a creative tour title for a walking tour in {neighborhood}, {city}. The tour includes sites focused on {theme}. Return ONLY the title, no explanation."
+  },
+
+  "keywords_extraction": {
+    "model": "gpt-4o",
+    "temperature": 0.5,
+    "max_tokens": 100,
+    "system_prompt": "You are a data analyst extracting relevant keywords from site descriptions. Return 3-7 keywords that capture the essence of the location: architecture style, historical period, cultural significance, etc.",
+    "user_prompt_template": "Extract 3-7 keywords from this site description:\n\n{description}\n\nReturn ONLY a comma-separated list of keywords, no explanation."
+  },
+
+  "tour_suggestions": {
+    "model": "gpt-4o",
+    "temperature": 0.8,
+    "max_tokens": 800,
+    "system_prompt": "You are a local tour expert creating personalized walking tour suggestions for visitors. Consider their interests, time available, and starting location. Suggest 3-5 specific sites with brief explanations of why they'd enjoy each.",
+    "user_prompt_template": "A visitor is at coordinates {latitude}, {longitude} in {city}. They are interested in: {interests}. They have {duration_hours} hours available. Suggest a walking tour itinerary with 3-5 specific sites they should visit, explaining why each site matches their interests."
+  },
+
+  "neighborhood_description": {
+    "model": "gpt-4o",
+    "temperature": 0.7,
+    "max_tokens": 300,
+    "system_prompt": "You are a local expert writing neighborhood overviews for a tour app. Capture the character, history, and vibe of the neighborhood in 2-3 engaging paragraphs. Focus on what makes it unique and why tourists should visit.",
+    "user_prompt_template": "Write a 2-3 paragraph overview of {neighborhood} in {city}. Focus on its character, history, notable features, and why tourists should explore this area."
+  }
+}

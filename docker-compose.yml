@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (for local development only)
+  # Production uses AWS RDS or Supabase
+  db:
+    image: postgres:14-alpine
+    container_name: voyana-db
+    environment:
+      POSTGRES_USER: voyana
+      POSTGRES_PASSWORD: voyana_dev_pass
+      POSTGRES_DB: voyana_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U voyana"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Flask Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: voyana-api
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://voyana:voyana_dev_pass@db:5432/voyana_db
+    env_file:
+      - .env
+    volumes:
+      # Mount source code for hot reload during development
+      - ./app:/app/app
+      - ./migrations:/app/migrations
+      - ./tests:/app/tests
+    depends_on:
+      db:
+        condition: service_healthy
+    command: flask run --host=0.0.0.0 --port=5000 --reload
+
+volumes:
+  postgres_data:
+    driver: local
