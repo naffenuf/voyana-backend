@@ -47,6 +47,9 @@ class BaseConfig:
     SMTP_PASSWORD = os.getenv('SMTP_PASSWORD')
     SMTP_FROM = os.getenv('SMTP_FROM', 'noreply@voyana.com')
 
+    # API Keys
+    ADMIN_API_KEY = os.getenv('ADMIN_API_KEY')
+
 
 class DevelopmentConfig(BaseConfig):
     """Development configuration."""

@@ -1,7 +1,7 @@
 """
 Authentication API endpoints.
 """
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import (
     create_access_token,
     create_refresh_token,
@@ -9,10 +9,60 @@ from flask_jwt_extended import (
     get_jwt_identity,
     get_jwt
 )
+from datetime import timedelta
 from app import db
 from app.models.user import User, PasswordResetToken
 
 auth_bp = Blueprint('auth', __name__)
+
+
+@auth_bp.route('/register-device', methods=['POST'])
+def register_device():
+    """
+    Register a device and get JWT token (no user account required).
+
+    Request body:
+        {
+            "api_key": "xxx",
+            "device_id": "xxx",
+            "device_name": "iPhone 15"  (optional)
+        }
+
+    Returns:
+        {
+            "access_token": "...",
+            "expires_in": 31536000  (1 year in seconds)
+        }
+    """
+    data = request.get_json()
+
+    # Validate required fields
+    if not data or not data.get('api_key') or not data.get('device_id'):
+        return jsonify({'error': 'api_key and device_id are required'}), 400
+
+    # Validate API key against configured admin key
+    valid_api_key = current_app.config.get('ADMIN_API_KEY')
+    if not valid_api_key or data['api_key'] != valid_api_key:
+        return jsonify({'error': 'Invalid API key'}), 401
+
+    device_id = data['device_id']
+    device_name = data.get('device_name', 'Unknown Device')
+
+    # Create JWT token with device identity (1 year expiry)
+    access_token = create_access_token(
+        identity=f"device:{device_id}",
+        additional_claims={
+            'type': 'device',
+            'device_id': device_id,
+            'device_name': device_name
+        },
+        expires_delta=timedelta(days=365)
+    )
+
+    return jsonify({
+        'access_token': access_token,
+        'expires_in': 31536000  # 1 year in seconds
+    }), 200
 
 
 @auth_bp.route('/register', methods=['POST'])

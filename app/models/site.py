@@ -35,6 +35,10 @@ class Site(db.Model):
     keywords = db.Column(ARRAY(db.String(50)))
     rating = db.Column(db.Float)
 
+    # Location context
+    city = db.Column(db.String(100))
+    neighborhood = db.Column(db.String(100))
+
     # Google Places integration
     place_id = db.Column(db.String(255), index=True)
     formatted_address = db.Column(db.Text)
@@ -80,6 +84,8 @@ class Site(db.Model):
             'webUrl': self.web_url,
             'keywords': self.keywords or [],
             'rating': self.rating,
+            'city': self.city,
+            'neighborhood': self.neighborhood,
             'placeId': self.place_id,
             'formattedAddress': self.formatted_address,
             'types': self.types or [],

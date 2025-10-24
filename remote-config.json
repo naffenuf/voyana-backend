@@ -1,0 +1,7 @@
+{
+    "config_version": 2,
+    "force_upgrade": false,
+    "min_version": "1.0.0",
+    "message": "New features available! Please update to continue.",
+    "api_base_url": "https://setsuko-nonrefueling-bentlee.ngrok-free.dev"
+}

@@ -30,13 +30,10 @@ class AudioCache(db.Model):
         return hashlib.md5(text.encode('utf-8')).hexdigest()
 
     @classmethod
-    def find_by_text(cls, text, voice_id=None):
-        """Find cached audio by text content (and optionally voice ID)."""
+    def find_by_text(cls, text):
+        """Find cached audio by text content."""
         text_hash = cls.get_hash(text)
-        query = cls.query.filter_by(text_hash=text_hash)
-        if voice_id:
-            query = query.filter_by(voice_id=voice_id)
-        return query.first()
+        return cls.query.filter_by(text_hash=text_hash).first()
 
     def update_stats(self):
         """Update access statistics."""

@@ -54,6 +54,13 @@ logs/
 *.db
 *.sqlite3
 
+# Database dumps (ignore data dumps, keep schema)
+*.sql
+!schema.sql
+
+# Seed data copy (tracked in iOS app, not here)
+app/all_tours.json
+
 # Docker
 .dockerignore
 
