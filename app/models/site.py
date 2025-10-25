@@ -87,10 +87,10 @@ class Site(db.Model):
             'city': self.city,
             'neighborhood': self.neighborhood,
             'placeId': self.place_id,
-            'formattedAddress': self.formatted_address,
+            'formatted_address': self.formatted_address,  # snake_case for iOS decoder
             'types': self.types or [],
-            'userRatingsTotal': self.user_ratings_total,
-            'phoneNumber': self.phone_number,
+            'user_ratings_total': self.user_ratings_total,  # snake_case for iOS decoder
+            'phone_number': self.phone_number,  # snake_case for iOS decoder
             'googlePhotoReferences': self.google_photo_references or [],
             'createdAt': self.created_at.isoformat(),
             'updatedAt': self.updated_at.isoformat(),
