@@ -86,6 +86,12 @@ class ProductionConfig(BaseConfig):
 class TestingConfig(BaseConfig):
     """Testing configuration."""
     TESTING = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+    ENV = 'testing'
+    # Use PostgreSQL test database (created fresh for each test)
+    SQLALCHEMY_DATABASE_URI = os.getenv(
+        'TEST_DATABASE_URL',
+        'postgresql://voyana:voyana_dev_pass@db:5432/voyana_test_db'
+    )
     JWT_SECRET_KEY = 'test-secret'
     SECRET_KEY = 'test-secret'
+    ADMIN_API_KEY = 'test-admin-key'

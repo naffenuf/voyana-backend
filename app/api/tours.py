@@ -91,7 +91,7 @@ def create_tour():
             "tour": {...}
         }
     """
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     data = request.get_json()
 
     if not data or not data.get('name'):
@@ -125,7 +125,7 @@ def update_tour(tour_id):
             "tour": {...}
         }
     """
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     tour = Tour.query.get(tour_id)
 
     if not tour:
@@ -165,7 +165,7 @@ def delete_tour(tour_id):
             "message": "Tour deleted successfully"
         }
     """
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     tour = Tour.query.get(tour_id)
 
     if not tour:

@@ -107,10 +107,10 @@ def register():
 
     # Create tokens
     access_token = create_access_token(
-        identity=user.id,
+        identity=str(user.id),
         additional_claims={'role': user.role, 'email': user.email}
     )
-    refresh_token = create_refresh_token(identity=user.id)
+    refresh_token = create_refresh_token(identity=str(user.id))
 
     return jsonify({
         'access_token': access_token,
@@ -160,10 +160,10 @@ def login():
 
     # Create tokens
     access_token = create_access_token(
-        identity=user.id,
+        identity=str(user.id),
         additional_claims={'role': user.role, 'email': user.email}
     )
-    refresh_token = create_refresh_token(identity=user.id)
+    refresh_token = create_refresh_token(identity=str(user.id))
 
     return jsonify({
         'access_token': access_token,
@@ -187,13 +187,13 @@ def refresh():
         }
     """
     identity = get_jwt_identity()
-    user = User.query.get(identity)
+    user = User.query.get(int(identity))
 
     if not user or not user.is_active:
         return jsonify({'error': 'Invalid user'}), 401
 
     access_token = create_access_token(
-        identity=user.id,
+        identity=str(user.id),
         additional_claims={'role': user.role, 'email': user.email}
     )
 
@@ -215,7 +215,7 @@ def get_current_user():
         }
     """
     user_id = get_jwt_identity()
-    user = User.query.get(user_id)
+    user = User.query.get(int(user_id))
 
     if not user:
         return jsonify({'error': 'User not found'}), 404

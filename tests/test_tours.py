@@ -1,0 +1,333 @@
+"""
+Tests for Tours API endpoints.
+"""
+import pytest
+import json
+from app.models.tour import Tour
+from app import db
+
+
+class TestListTours:
+    """Tests for GET /api/tours endpoint."""
+
+    def test_list_tours_default(self, client, test_tour):
+        """Test listing tours with default filters (public live tours)."""
+        response = client.get('/api/tours')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert 'tours' in data
+        assert len(data['tours']) == 1
+        assert data['tours'][0]['id'] == str(test_tour.id)
+        assert data['tours'][0]['name'] == test_tour.name
+
+    def test_list_tours_filter_by_status(self, client, test_tour, draft_tour):
+        """Test filtering tours by status."""
+        # Test with status=live (should match test_tour)
+        response = client.get('/api/tours?status=live')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data['tours']) == 1
+        assert data['tours'][0]['status'] == 'live'
+
+        # Test with status=draft (should match draft_tour if public)
+        response = client.get('/api/tours?status=draft')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        # Draft tours are not public, so won't show in default query
+        # This would need auth to see private tours
+
+    def test_list_tours_filter_by_city(self, app, client, test_tour):
+        """Test filtering tours by city."""
+        # Create another tour in a different city
+        with app.app_context():
+            tour2 = Tour(
+                owner_id=test_tour.owner_id,
+                name='Brooklyn Tour',
+                city='Brooklyn',
+                status='live',
+                is_public=True
+            )
+            db.session.add(tour2)
+            db.session.commit()
+
+        # Filter by New York
+        response = client.get('/api/tours?city=New York')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data['tours']) == 1
+        assert data['tours'][0]['city'] == 'New York'
+
+        # Filter by Brooklyn
+        response = client.get('/api/tours?city=Brooklyn')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data['tours']) == 1
+        assert data['tours'][0]['city'] == 'Brooklyn'
+
+    def test_list_tours_filter_by_neighborhood(self, app, client, test_tour):
+        """Test filtering tours by neighborhood."""
+        response = client.get('/api/tours?neighborhood=SoHo')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data['tours']) == 1
+        assert data['tours'][0]['neighborhood'] == 'SoHo'
+
+    def test_list_tours_empty_result(self, client):
+        """Test listing tours when none exist."""
+        response = client.get('/api/tours')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert 'tours' in data
+        assert len(data['tours']) == 0
+
+    def test_list_tours_only_public(self, app, client, test_tour):
+        """Test that only public tours are listed by default."""
+        # Create a private tour
+        with app.app_context():
+            private_tour = Tour(
+                owner_id=test_tour.owner_id,
+                name='Private Tour',
+                status='live',
+                is_public=False
+            )
+            db.session.add(private_tour)
+            db.session.commit()
+
+        response = client.get('/api/tours')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        # Should only return the public tour
+        assert len(data['tours']) == 1
+        assert data['tours'][0]['id'] == str(test_tour.id)
+
+
+class TestGetTour:
+    """Tests for GET /api/tours/<id> endpoint."""
+
+    def test_get_tour_success(self, client, test_tour):
+        """Test getting a specific tour."""
+        response = client.get(f'/api/tours/{test_tour.id}')
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['id'] == str(test_tour.id)
+        assert data['name'] == test_tour.name
+        assert data['description'] == test_tour.description
+        assert data['city'] == test_tour.city
+        assert data['neighborhood'] == test_tour.neighborhood
+
+    def test_get_tour_not_found(self, client):
+        """Test getting non-existent tour."""
+        from uuid import uuid4
+        fake_id = uuid4()
+
+        response = client.get(f'/api/tours/{fake_id}')
+
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_get_tour_invalid_uuid(self, client):
+        """Test getting tour with invalid UUID format."""
+        response = client.get('/api/tours/not-a-uuid')
+
+        # Flask routing won't match, so 404
+        assert response.status_code == 404
+
+
+class TestCreateTour:
+    """Tests for POST /api/tours endpoint."""
+
+    def test_create_tour_success(self, client, auth_headers):
+        """Test creating a tour with valid data."""
+        response = client.post('/api/tours', headers=auth_headers, json={
+            'name': 'New Tour',
+            'description': 'A new exciting tour',
+            'city': 'Manhattan',
+            'neighborhood': 'Chelsea',
+            'latitude': 40.7465,
+            'longitude': -73.9977
+        })
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert data['name'] == 'New Tour'
+        assert data['description'] == 'A new exciting tour'
+        assert data['city'] == 'Manhattan'
+        assert data['neighborhood'] == 'Chelsea'
+        assert data['status'] == 'draft'  # Default status
+        assert 'id' in data
+
+    def test_create_tour_requires_auth(self, client):
+        """Test that creating a tour requires authentication."""
+        response = client.post('/api/tours', json={
+            'name': 'Unauthorized Tour'
+        })
+
+        assert response.status_code == 401
+
+    def test_create_tour_missing_name(self, client, auth_headers):
+        """Test creating tour without required name field."""
+        response = client.post('/api/tours', headers=auth_headers, json={
+            'description': 'No name tour'
+        })
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'error' in data
+
+    def test_create_tour_minimal_data(self, client, auth_headers):
+        """Test creating tour with only required fields."""
+        response = client.post('/api/tours', headers=auth_headers, json={
+            'name': 'Minimal Tour'
+        })
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert data['name'] == 'Minimal Tour'
+        assert data['status'] == 'draft'
+
+    def test_create_tour_sets_owner(self, app, client, auth_headers, test_user):
+        """Test that created tour is assigned to the authenticated user."""
+        response = client.post('/api/tours', headers=auth_headers, json={
+            'name': 'Owner Test Tour'
+        })
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+
+        # Verify owner in database
+        with app.app_context():
+            tour = Tour.query.get(data['id'])
+            assert tour.owner_id == test_user.id
+
+
+class TestUpdateTour:
+    """Tests for PUT /api/tours/<id> endpoint."""
+
+    def test_update_tour_success(self, client, auth_headers, test_tour):
+        """Test updating a tour as the owner."""
+        response = client.put(f'/api/tours/{test_tour.id}', headers=auth_headers, json={
+            'name': 'Updated Tour Name',
+            'description': 'Updated description',
+            'status': 'live'
+        })
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['name'] == 'Updated Tour Name'
+        assert data['description'] == 'Updated description'
+        assert data['status'] == 'live'
+
+    def test_update_tour_partial(self, client, auth_headers, test_tour):
+        """Test partial update of a tour."""
+        original_description = test_tour.description
+
+        response = client.put(f'/api/tours/{test_tour.id}', headers=auth_headers, json={
+            'name': 'Partially Updated'
+        })
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['name'] == 'Partially Updated'
+        assert data['description'] == original_description  # Unchanged
+
+    def test_update_tour_requires_auth(self, client, test_tour):
+        """Test that updating requires authentication."""
+        response = client.put(f'/api/tours/{test_tour.id}', json={
+            'name': 'Unauthorized Update'
+        })
+
+        assert response.status_code == 401
+
+    def test_update_tour_not_found(self, client, auth_headers):
+        """Test updating non-existent tour."""
+        from uuid import uuid4
+        fake_id = uuid4()
+
+        response = client.put(f'/api/tours/{fake_id}', headers=auth_headers, json={
+            'name': 'Ghost Tour'
+        })
+
+        assert response.status_code == 404
+
+    def test_update_tour_not_owner(self, app, client, auth_headers, admin_user):
+        """Test that non-owner cannot update tour."""
+        # Create a tour owned by admin user
+        with app.app_context():
+            admin_tour = Tour(
+                owner_id=admin_user.id,
+                name='Admin Tour',
+                status='live',
+                is_public=True
+            )
+            db.session.add(admin_tour)
+            db.session.commit()
+            tour_id = admin_tour.id
+
+        # Try to update with test_user's token (not the owner)
+        response = client.put(f'/api/tours/{tour_id}', headers=auth_headers, json={
+            'name': 'Stolen Tour'
+        })
+
+        assert response.status_code == 403
+        data = json.loads(response.data)
+        assert 'error' in data
+        assert 'unauthorized' in data['error'].lower()
+
+
+class TestDeleteTour:
+    """Tests for DELETE /api/tours/<id> endpoint."""
+
+    def test_delete_tour_success(self, app, client, auth_headers, test_tour):
+        """Test deleting a tour as the owner."""
+        tour_id = test_tour.id
+
+        response = client.delete(f'/api/tours/{tour_id}', headers=auth_headers)
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert 'message' in data
+
+        # Verify tour was deleted from database
+        with app.app_context():
+            tour = Tour.query.get(tour_id)
+            assert tour is None
+
+    def test_delete_tour_requires_auth(self, client, test_tour):
+        """Test that deleting requires authentication."""
+        response = client.delete(f'/api/tours/{test_tour.id}')
+
+        assert response.status_code == 401
+
+    def test_delete_tour_not_found(self, client, auth_headers):
+        """Test deleting non-existent tour."""
+        from uuid import uuid4
+        fake_id = uuid4()
+
+        response = client.delete(f'/api/tours/{fake_id}', headers=auth_headers)
+
+        assert response.status_code == 404
+
+    def test_delete_tour_not_owner(self, app, client, auth_headers, admin_user):
+        """Test that non-owner cannot delete tour."""
+        # Create a tour owned by admin user
+        with app.app_context():
+            admin_tour = Tour(
+                owner_id=admin_user.id,
+                name='Admin Tour',
+                status='live',
+                is_public=True
+            )
+            db.session.add(admin_tour)
+            db.session.commit()
+            tour_id = admin_tour.id
+
+        # Try to delete with test_user's token (not the owner)
+        response = client.delete(f'/api/tours/{tour_id}', headers=auth_headers)
+
+        assert response.status_code == 403
+        data = json.loads(response.data)
+        assert 'error' in data
+        assert 'unauthorized' in data['error'].lower()
