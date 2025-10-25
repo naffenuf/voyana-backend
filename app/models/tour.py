@@ -39,6 +39,10 @@ class Tour(db.Model):
     duration_minutes = db.Column(db.Integer)
     distance_meters = db.Column(db.Float)
 
+    # Ratings (aggregated from user feedback)
+    average_rating = db.Column(db.Float)
+    rating_count = db.Column(db.Integer, default=0)
+
     # Status
     status = db.Column(db.String(20), default='draft', nullable=False)  # 'draft', 'live', 'archived'
     is_public = db.Column(db.Boolean, default=False, nullable=False)
@@ -68,6 +72,8 @@ class Tour(db.Model):
             'musicUrls': self.music_urls,
             'durationMinutes': self.duration_minutes,
             'distanceMeters': self.distance_meters,
+            'averageRating': self.average_rating,
+            'ratingCount': self.rating_count,
             'status': self.status,
             'isPublic': self.is_public,
             'createdAt': self.created_at.isoformat(),

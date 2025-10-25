@@ -86,6 +86,7 @@ def register_blueprints(app):
     from app.api.sites import sites_bp
     from app.api.media import media_bp
     from app.api.maps import maps_bp
+    from app.api.feedback import feedback_bp
 
     # API blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -93,6 +94,7 @@ def register_blueprints(app):
     app.register_blueprint(sites_bp, url_prefix='/api/sites')
     app.register_blueprint(media_bp, url_prefix='/api/media')
     app.register_blueprint(maps_bp, url_prefix='/api/maps')
+    app.register_blueprint(feedback_bp, url_prefix='/api/feedback')
 
     # Health check endpoint (no prefix)
     @app.route('/api/health')
