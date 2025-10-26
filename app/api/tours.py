@@ -1,52 +1,158 @@
 """
 Tours API endpoints.
 """
-from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask import Blueprint, request, jsonify, current_app
+from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request, get_jwt
+from sqlalchemy import or_
 from app import db
 from app.models.tour import Tour
+import math
 
 tours_bp = Blueprint('tours', __name__)
+
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate the great circle distance between two points on the earth (specified in decimal degrees).
+    Returns distance in meters.
+    """
+    # Convert decimal degrees to radians
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+
+    # Radius of earth in meters
+    r = 6371000
+
+    return c * r
 
 
 @tours_bp.route('', methods=['GET'])
 def list_tours():
     """
-    List all tours (public + user's own).
+    List tours (public tours + authenticated user's own tours).
 
     Query params:
-        status: Filter by status ('draft', 'live', 'archived')
-        city: Filter by city
-        neighborhood: Filter by neighborhood
+        - search: Text search in name, city, neighborhood
+        - status: Filter by status (draft, live, archived)
+        - city: Filter by city
+        - neighborhood: Filter by neighborhood
+        - lat: Latitude for proximity search (requires lon)
+        - lon: Longitude for proximity search (requires lat)
+        - max_distance: Maximum distance in meters for proximity search (default: 5000)
+        - limit: Number of results (default: 100)
+        - offset: Offset for pagination (default: 0)
 
     Returns:
         {
-            "tours": [...]
+            "tours": [...],
+            "total": count,
+            "limit": limit,
+            "offset": offset
         }
     """
+    # Check if user is authenticated (optional)
+    user_id = None
+    try:
+        verify_jwt_in_request(optional=True)
+        jwt_identity = get_jwt_identity()
+        if jwt_identity:
+            user_id = int(jwt_identity)
+    except:
+        pass
+
+    # Get query params
+    search_text = request.args.get('search', '').strip()
+    status = request.args.get('status', '').strip()
+    city = request.args.get('city', '').strip()
+    neighborhood = request.args.get('neighborhood', '').strip()
+    lat = request.args.get('lat')
+    lon = request.args.get('lon')
+    max_distance = request.args.get('max_distance', 5000, type=int)
+    limit = min(request.args.get('limit', 100, type=int), 500)
+    offset = request.args.get('offset', 0, type=int)
+
+    # Build query
     query = Tour.query
 
-    # Filter by status
-    status = request.args.get('status')
-    if status:
-        query = query.filter_by(status=status)
+    # Access control: public tours OR user's own tours
+    if user_id:
+        query = query.filter(
+            or_(
+                Tour.is_public == True,
+                Tour.owner_id == user_id
+            )
+        )
     else:
-        # Default: show only live tours for public
-        query = query.filter_by(status='live', is_public=True)
+        query = query.filter(Tour.is_public == True)
 
-    # Filter by location
-    city = request.args.get('city')
+    # Text search filter
+    if search_text:
+        search_pattern = f'%{search_text}%'
+        query = query.filter(
+            or_(
+                Tour.name.ilike(search_pattern),
+                Tour.city.ilike(search_pattern),
+                Tour.neighborhood.ilike(search_pattern),
+                Tour.description.ilike(search_pattern)
+            )
+        )
+
+    # Status filter
+    if status:
+        query = query.filter(Tour.status == status)
+    else:
+        # Default: only show live tours
+        query = query.filter(Tour.status == 'live')
+
+    # City filter
     if city:
-        query = query.filter_by(city=city)
+        query = query.filter(Tour.city.ilike(city))
 
-    neighborhood = request.args.get('neighborhood')
+    # Neighborhood filter
     if neighborhood:
-        query = query.filter_by(neighborhood=neighborhood)
+        query = query.filter(Tour.neighborhood.ilike(neighborhood))
 
-    tours = query.all()
+    # Get total count
+    total = query.count()
+
+    # Execute query with pagination
+    tours = query.order_by(Tour.created_at.desc()).limit(limit).offset(offset).all()
+
+    # If proximity search is requested, filter and sort by distance
+    if lat and lon:
+        try:
+            lat = float(lat)
+            lon = float(lon)
+
+            # Calculate distance for each tour that has coordinates
+            tours_with_distance = []
+            for tour in tours:
+                if tour.latitude and tour.longitude:
+                    distance = calculate_distance(lat, lon, tour.latitude, tour.longitude)
+                    if distance <= max_distance:
+                        tour_dict = tour.to_dict(include_sites=True)
+                        tour_dict['distance'] = round(distance, 2)
+                        tours_with_distance.append(tour_dict)
+
+            # Sort by distance
+            tours_with_distance.sort(key=lambda x: x['distance'])
+            tours_data = tours_with_distance
+        except (ValueError, TypeError):
+            current_app.logger.error(f'Invalid lat/lon values: {lat}, {lon}')
+            tours_data = [tour.to_dict(include_sites=True) for tour in tours]
+    else:
+        tours_data = [tour.to_dict(include_sites=True) for tour in tours]
 
     return jsonify({
-        'tours': [tour.to_dict() for tour in tours]
+        'tours': tours_data,
+        'total': total,
+        'limit': limit,
+        'offset': offset
     }), 200
 
 
@@ -66,9 +172,26 @@ def get_tour(tour_id):
         return jsonify({'error': 'Tour not found'}), 404
 
     # Check if user has access (public or owner)
-    # TODO: Check JWT if present
+    user_id = None
+    try:
+        verify_jwt_in_request(optional=True)
+        jwt_identity = get_jwt_identity()
+        if jwt_identity:
+            user_id = int(jwt_identity)
+    except:
+        pass
 
-    return jsonify(tour.to_dict()), 200
+    # Allow access if tour is public OR user is the owner
+    if not tour.is_public and (not user_id or tour.owner_id != user_id):
+        # Check if user is admin
+        try:
+            claims = get_jwt()
+            if claims.get('role') != 'admin':
+                return jsonify({'error': 'Unauthorized'}), 403
+        except:
+            return jsonify({'error': 'Unauthorized'}), 403
+
+    return jsonify({'tour': tour.to_dict()}), 200
 
 
 @tours_bp.route('', methods=['POST'])
@@ -118,7 +241,7 @@ def create_tour():
 @jwt_required()
 def update_tour(tour_id):
     """
-    Update an existing tour.
+    Update an existing tour (owner or admin only).
 
     Returns:
         {
@@ -126,16 +249,22 @@ def update_tour(tour_id):
         }
     """
     user_id = int(get_jwt_identity())
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
     tour = Tour.query.get(tour_id)
 
     if not tour:
         return jsonify({'error': 'Tour not found'}), 404
 
-    # Check ownership
-    if tour.owner_id != user_id:
+    # Check ownership (admin or owner)
+    if not is_admin and tour.owner_id != user_id:
         return jsonify({'error': 'Unauthorized'}), 403
 
     data = request.get_json()
+
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
 
     # Update fields
     if 'name' in data:
@@ -146,19 +275,46 @@ def update_tour(tour_id):
         tour.city = data['city']
     if 'neighborhood' in data:
         tour.neighborhood = data['neighborhood']
-    if 'status' in data:
+    if 'latitude' in data:
+        tour.latitude = data['latitude']
+    if 'longitude' in data:
+        tour.longitude = data['longitude']
+    if 'imageUrl' in data:
+        tour.image_url = data['imageUrl']
+    if 'audioUrl' in data:
+        tour.audio_url = data['audioUrl']
+    if 'mapImageUrl' in data:
+        tour.map_image_url = data['mapImageUrl']
+    if 'musicUrls' in data:
+        tour.music_urls = data['musicUrls']
+    if 'durationMinutes' in data:
+        tour.duration_minutes = data['durationMinutes']
+    if 'distanceMeters' in data:
+        tour.distance_meters = data['distanceMeters']
+
+    # Status can be changed by owner, but not is_public (only admin can publish)
+    if 'status' in data and data['status'] in ['draft', 'live', 'archived']:
         tour.status = data['status']
+
+    # Only admin can change is_public
+    if is_admin and 'isPublic' in data:
+        # Validate: only live tours can be published
+        if bool(data['isPublic']) and tour.status != 'live':
+            return jsonify({'error': 'Only live tours can be published'}), 400
+        tour.is_public = bool(data['isPublic'])
 
     db.session.commit()
 
-    return jsonify(tour.to_dict()), 200
+    current_app.logger.info(f'Updated tour: {tour.id} ({tour.name})')
+
+    return jsonify({'tour': tour.to_dict()}), 200
 
 
 @tours_bp.route('/<uuid:tour_id>', methods=['DELETE'])
 @jwt_required()
 def delete_tour(tour_id):
     """
-    Delete a tour.
+    Delete a tour (owner or admin only).
 
     Returns:
         {
@@ -166,16 +322,22 @@ def delete_tour(tour_id):
         }
     """
     user_id = int(get_jwt_identity())
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
     tour = Tour.query.get(tour_id)
 
     if not tour:
         return jsonify({'error': 'Tour not found'}), 404
 
-    # Check ownership
-    if tour.owner_id != user_id:
+    # Check ownership (admin or owner)
+    if not is_admin and tour.owner_id != user_id:
         return jsonify({'error': 'Unauthorized'}), 403
 
+    tour_name = tour.name
     db.session.delete(tour)
     db.session.commit()
+
+    current_app.logger.info(f'Deleted tour: {tour_id} ({tour_name})')
 
     return jsonify({'message': 'Tour deleted successfully'}), 200

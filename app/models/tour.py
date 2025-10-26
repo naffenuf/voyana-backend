@@ -56,6 +56,17 @@ class Tour(db.Model):
     owner = db.relationship('User', back_populates='tours')
     tour_sites = db.relationship('TourSite', back_populates='tour', lazy=True, cascade='all, delete-orphan', order_by='TourSite.display_order')
 
+    def get_calculated_rating(self):
+        """Calculate average rating from all sites in the tour."""
+        if not self.tour_sites:
+            return None
+
+        site_ratings = [ts.site.rating for ts in self.tour_sites if ts.site.rating is not None]
+        if not site_ratings:
+            return None
+
+        return sum(site_ratings) / len(site_ratings)
+
     def to_dict(self, include_sites=True):
         """Convert to dictionary."""
         result = {
@@ -74,8 +85,11 @@ class Tour(db.Model):
             'distanceMeters': self.distance_meters,
             'averageRating': self.average_rating,
             'ratingCount': self.rating_count,
+            'calculatedRating': self.get_calculated_rating(),
             'status': self.status,
             'isPublic': self.is_public,
+            'ownerId': self.owner_id,
+            'ownerName': self.owner.name if self.owner else None,
             'createdAt': self.created_at.isoformat(),
             'updatedAt': self.updated_at.isoformat(),
             'publishedAt': self.published_at.isoformat() if self.published_at else None,
