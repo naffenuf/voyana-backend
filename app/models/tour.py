@@ -93,6 +93,7 @@ class Tour(db.Model):
             'createdAt': self.created_at.isoformat(),
             'updatedAt': self.updated_at.isoformat(),
             'publishedAt': self.published_at.isoformat() if self.published_at else None,
+            'siteCount': len(self.tour_sites),
         }
 
         if include_sites:

@@ -92,6 +92,7 @@ class Site(db.Model):
             'user_ratings_total': self.user_ratings_total,  # snake_case for iOS decoder
             'phone_number': self.phone_number,  # snake_case for iOS decoder
             'googlePhotoReferences': self.google_photo_references or [],
+            'tourCount': len(self.tour_sites),
             'createdAt': self.created_at.isoformat(),
             'updatedAt': self.updated_at.isoformat(),
         }
