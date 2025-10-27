@@ -4,11 +4,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import { toursApi, adminToursApi } from '../lib/api';
+import { toursApi, adminToursApi, sitesApi } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePresignedUrl } from '../hooks/usePresignedUrl';
 import FileUpload from '../components/FileUpload';
-import type { Tour } from '../types';
+import AddSiteWizard from '../components/AddSiteWizard';
+import RemoveSiteDialog from '../components/RemoveSiteDialog';
+import type { Tour, Site } from '../types';
 
 export default function TourDetail() {
   const { id } = useParams<{ id: string }>();
@@ -30,6 +32,8 @@ export default function TourDetail() {
   const [originalData, setOriginalData] = useState<Partial<Tour> | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [hoveredSiteId, setHoveredSiteId] = useState<string | null>(null);
+  const [showAddSiteWizard, setShowAddSiteWizard] = useState(false);
+  const [siteToRemove, setSiteToRemove] = useState<Site | null>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: tourData, isLoading } = useQuery({
@@ -192,6 +196,48 @@ export default function TourDetail() {
     const musicUrls = [...(formData.musicUrls || [])];
     musicUrls.splice(index, 1);
     setFormData((prev) => ({ ...prev, musicUrls }));
+  };
+
+  const handleSiteCreated = (site: Site) => {
+    // Refresh tour data to include the new site
+    queryClient.invalidateQueries({ queryKey: ['tour', id] });
+    toast.success(`Site "${site.title}" added to tour!`);
+  };
+
+  const handleRemoveFromTour = async () => {
+    if (!siteToRemove || !tourData) return;
+
+    try {
+      // Get current site IDs and remove the selected one
+      const currentSiteIds = tourData.siteIds || [];
+      const updatedSiteIds = currentSiteIds.filter((siteId) => siteId !== siteToRemove.id);
+
+      // Update the tour with the new site list
+      await toursApi.update(id!, { siteIds: updatedSiteIds });
+
+      // Refresh tour data
+      queryClient.invalidateQueries({ queryKey: ['tour', id] });
+      toast.success(`Site "${siteToRemove.title}" removed from tour`);
+      setSiteToRemove(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to remove site from tour');
+    }
+  };
+
+  const handleDeleteSite = async () => {
+    if (!siteToRemove) return;
+
+    try {
+      await sitesApi.delete(siteToRemove.id);
+
+      // Refresh tour data (site will be automatically removed)
+      queryClient.invalidateQueries({ queryKey: ['tour', id] });
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
+      toast.success(`Site "${siteToRemove.title}" deleted permanently`);
+      setSiteToRemove(null);
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to delete site');
+    }
   };
 
   if (isLoading) {
@@ -362,17 +408,29 @@ export default function TourDetail() {
 
               {/* Location Section */}
               <div className="space-y-4 pt-6 border-t border-gray-200">
-                <div>
-                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                    <span className="text-2xl">📍</span>
-                    {formData.neighborhood && formData.city
-                      ? `${formData.neighborhood}, ${formData.city}`
-                      : formData.city || formData.neighborhood || 'Location'}
-                  </h2>
-                  {tourData?.sites && tourData.sites.length > 0 && (
-                    <p className="text-sm text-gray-500 mt-1 italic">
-                      Order optimized for user's location
-                    </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <span className="text-2xl">📍</span>
+                      {formData.neighborhood && formData.city
+                        ? `${formData.neighborhood}, ${formData.city}`
+                        : formData.city || formData.neighborhood || 'Location'}
+                    </h2>
+                    {tourData?.sites && tourData.sites.length > 0 && (
+                      <p className="text-sm text-gray-500 mt-1 italic">
+                        Order optimized for user's location
+                      </p>
+                    )}
+                  </div>
+                  {!isNew && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSiteWizard(true)}
+                      className="px-4 py-2 bg-[#8B6F47] hover:bg-[#6F5838] text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
+                    >
+                      <span className="text-lg">+</span>
+                      Add Site
+                    </button>
                   )}
                 </div>
 
@@ -414,9 +472,8 @@ export default function TourDetail() {
                     {/* Sites list */}
                     <div className="space-y-2">
                       {tourData.sites.map((site, index) => (
-                        <Link
+                        <div
                           key={site.id}
-                          to={`/sites/${site.id}`}
                           className={`flex items-start gap-3 p-3 rounded-lg transition-colors group ${
                             hoveredSiteId === site.id ? 'bg-[#F6EDD9]' : 'hover:bg-[#F6EDD9]/50'
                           }`}
@@ -428,7 +485,10 @@ export default function TourDetail() {
                           }`}>
                             {index + 1}
                           </div>
-                          <div className="flex-1 min-w-0">
+                          <Link
+                            to={`/sites/${site.id}`}
+                            className="flex-1 min-w-0"
+                          >
                             <div className="font-medium text-gray-900 group-hover:text-[#8B6F47] transition-colors">
                               {site.title}
                             </div>
@@ -437,11 +497,19 @@ export default function TourDetail() {
                                 {site.neighborhood}, {site.city}
                               </div>
                             )}
-                          </div>
-                          <div className="flex-shrink-0 text-gray-400 group-hover:text-[#8B6F47]">
-                            →
-                          </div>
-                        </Link>
+                          </Link>
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setSiteToRemove(site);
+                            }}
+                            className="flex-shrink-0 w-6 h-6 rounded-full bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-700 flex items-center justify-center transition-colors opacity-0 group-hover:opacity-100"
+                            title="Remove site"
+                          >
+                            ×
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </>
@@ -705,6 +773,33 @@ export default function TourDetail() {
           </div>
         </div>
       </div>
+
+      {/* Add Site Wizard */}
+      <AddSiteWizard
+        isOpen={showAddSiteWizard}
+        onClose={() => setShowAddSiteWizard(false)}
+        onSiteCreated={handleSiteCreated}
+        tourId={id}
+        initialLocation={
+          tourData?.sites && tourData.sites.length > 0
+            ? { latitude: tourData.sites[0].latitude, longitude: tourData.sites[0].longitude }
+            : tourData?.latitude && tourData?.longitude
+            ? { latitude: tourData.latitude, longitude: tourData.longitude }
+            : undefined
+        }
+      />
+
+      {/* Remove Site Dialog */}
+      {siteToRemove && (
+        <RemoveSiteDialog
+          isOpen={!!siteToRemove}
+          onClose={() => setSiteToRemove(null)}
+          site={siteToRemove}
+          tourId={id}
+          onRemoveFromTour={handleRemoveFromTour}
+          onDeleteSite={handleDeleteSite}
+        />
+      )}
     </div>
   );
 }

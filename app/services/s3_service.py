@@ -116,6 +116,85 @@ def generate_presigned_url(object_url, expires_in=3600):
         return object_url  # Fall back to original URL on error
 
 
+def delete_file_from_s3(object_url):
+    """
+    Delete a file from S3 bucket.
+
+    Args:
+        object_url: The URL of the object in S3
+
+    Returns:
+        True if deletion was successful, False otherwise
+    """
+    try:
+        if not object_url:
+            logger.warning("Empty object URL provided for deletion")
+            return False
+
+        logger.info(f"Attempting to delete S3 object: {object_url[:100]}...")
+
+        # Only process S3 URLs
+        if not (('s3.' in object_url and 'amazonaws.com' in object_url) or
+                '.s3.amazonaws.com' in object_url):
+            logger.warning(f"Not an S3 URL, skipping deletion: {object_url[:100]}...")
+            return False
+
+        s3_client = get_s3_client()
+        bucket_name = current_app.config['AWS_S3_BUCKET_NAME']
+        object_key = None
+
+        # Extract bucket name from URL for multi-bucket support
+        bucket_name_from_url = None
+        if '.s3.' in object_url and '.amazonaws.com' in object_url:
+            match = re.search(r'https?://([^.]+)\.s3\.', object_url)
+            if match:
+                bucket_name_from_url = match.group(1)
+        elif '.s3.amazonaws.com' in object_url:
+            match = re.search(r'https?://([^.]+)\.s3\.amazonaws', object_url)
+            if match:
+                bucket_name_from_url = match.group(1)
+
+        # Extract the object key based on URL format
+        if '.s3.' in object_url and '.amazonaws.com/' in object_url:
+            parts = object_url.split('.amazonaws.com/')
+            if len(parts) == 2:
+                object_key = parts[1]
+        elif 's3.amazonaws.com/' in object_url:
+            parts = object_url.split('amazonaws.com/')
+            if len(parts) == 2:
+                object_key = parts[1]
+        elif '.s3.amazonaws.com/' in object_url:
+            parts = object_url.split('.s3.amazonaws.com/')
+            if len(parts) == 2:
+                object_key = parts[1]
+
+        if not object_key:
+            logger.warning(f"Could not extract object key from URL: {object_url[:100]}...")
+            return False
+
+        # If we extracted a bucket name from the URL, use it
+        if bucket_name_from_url and bucket_name_from_url != bucket_name:
+            logger.info(f"Using bucket name from URL: {bucket_name_from_url}")
+            bucket_name = bucket_name_from_url
+
+        # Delete the object
+        try:
+            s3_client.delete_object(
+                Bucket=bucket_name,
+                Key=object_key
+            )
+            logger.info(f"Successfully deleted S3 object: {object_key}")
+            return True
+
+        except ClientError as e:
+            logger.error(f"Error deleting S3 object {object_key}: {e}")
+            return False
+
+    except Exception as e:
+        logger.error(f"Error in delete_file_from_s3: {e}")
+        return False
+
+
 def upload_file_to_s3(file_data, file_name, folder='audio', content_type='audio/mpeg'):
     """
     Upload a file to S3 bucket and return the URL.

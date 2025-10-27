@@ -1,16 +1,21 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../lib/auth';
 import { sitesApi } from '../lib/api';
+import AddSiteWizard from '../components/AddSiteWizard';
+import RemoveSiteDialog from '../components/RemoveSiteDialog';
 import type { Site } from '../types';
 
 export default function Sites() {
   const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('');
+  const [showAddSiteWizard, setShowAddSiteWizard] = useState(false);
+  const [siteToDelete, setSiteToDelete] = useState<Site | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['sites', search, cityFilter],
@@ -27,6 +32,7 @@ export default function Sites() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sites'] });
       toast.success('Site deleted successfully');
+      setSiteToDelete(null);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to delete site');
@@ -34,8 +40,19 @@ export default function Sites() {
   });
 
   const handleDelete = (site: Site) => {
-    if (!confirm(`Are you sure you want to delete "${site.title}"?`)) return;
-    deleteMutation.mutate(site.id);
+    setSiteToDelete(site);
+  };
+
+  const handleConfirmDelete = () => {
+    if (siteToDelete) {
+      deleteMutation.mutate(siteToDelete.id);
+    }
+  };
+
+  const handleSiteCreated = (site: Site) => {
+    queryClient.invalidateQueries({ queryKey: ['sites'] });
+    // Navigate to the newly created site
+    navigate(`/sites/${site.id}`);
   };
 
   return (
@@ -46,14 +63,12 @@ export default function Sites() {
           <h1 className="text-3xl font-bold text-gray-900">Sites</h1>
           <p className="text-gray-600 mt-1">Manage your site collection</p>
         </div>
-        {isAdmin && (
-          <Link
-            to="/sites/new"
-            className="px-6 py-2.5 bg-[#944F2E] hover:bg-[#7d4227] text-white rounded-lg font-medium transition-colors"
-          >
-            Create Site
-          </Link>
-        )}
+        <button
+          onClick={() => setShowAddSiteWizard(true)}
+          className="px-6 py-2.5 bg-[#944F2E] hover:bg-[#7d4227] text-white rounded-lg font-medium transition-colors"
+        >
+          Create Site
+        </button>
       </div>
 
       {/* Filters */}
@@ -143,17 +158,32 @@ export default function Sites() {
                   ? 'Get started by creating your first site'
                   : 'No sites are available yet'}
               </p>
-              {isAdmin && (
-                <Link
-                  to="/sites/new"
-                  className="inline-flex items-center px-6 py-2.5 bg-[#944F2E] hover:bg-[#7d4227] text-white rounded-lg font-medium transition-colors"
-                >
-                  Create Site
-                </Link>
-              )}
+              <button
+                onClick={() => setShowAddSiteWizard(true)}
+                className="inline-flex items-center px-6 py-2.5 bg-[#944F2E] hover:bg-[#7d4227] text-white rounded-lg font-medium transition-colors"
+              >
+                Create Site
+              </button>
             </div>
           )}
         </div>
+      )}
+
+      {/* Add Site Wizard */}
+      <AddSiteWizard
+        isOpen={showAddSiteWizard}
+        onClose={() => setShowAddSiteWizard(false)}
+        onSiteCreated={handleSiteCreated}
+      />
+
+      {/* Delete Site Dialog */}
+      {siteToDelete && (
+        <RemoveSiteDialog
+          isOpen={!!siteToDelete}
+          onClose={() => setSiteToDelete(null)}
+          site={siteToDelete}
+          onDeleteSite={handleConfirmDelete}
+        />
       )}
     </div>
   );

@@ -147,10 +147,9 @@ def get_site(site_id):
 
 @sites_bp.route('', methods=['POST'])
 @jwt_required()
-@admin_required()
 def create_site():
     """
-    Create a new site (admin only).
+    Create a new site.
 
     Request body:
         {
@@ -315,7 +314,8 @@ def delete_site(site_id):
     """
     Delete a site (admin only).
 
-    Note: This will also remove the site from any tours that reference it.
+    Note: This will also remove the site from any tours that reference it
+    and delete associated S3 resources (image, audio, and Google photos).
 
     Returns:
         {
@@ -330,13 +330,38 @@ def delete_site(site_id):
     # Check if site is used in any tours
     tour_count = len(site.tour_sites)
 
+    # Collect S3 URLs to delete
+    s3_urls_to_delete = []
+
+    if site.image_url:
+        s3_urls_to_delete.append(site.image_url)
+
+    if site.audio_url:
+        s3_urls_to_delete.append(site.audio_url)
+
+    if site.google_photo_references:
+        s3_urls_to_delete.extend(site.google_photo_references)
+
     site_title = site.title
+
+    # Delete the site from database
     db.session.delete(site)
     db.session.commit()
 
-    current_app.logger.info(f'Deleted site: {site_id} ({site_title}), removed from {tour_count} tours')
+    # Delete S3 files
+    from app.services.s3_service import delete_file_from_s3
+    deleted_count = 0
+    for url in s3_urls_to_delete:
+        if delete_file_from_s3(url):
+            deleted_count += 1
+
+    current_app.logger.info(
+        f'Deleted site: {site_id} ({site_title}), removed from {tour_count} tours, '
+        f'deleted {deleted_count}/{len(s3_urls_to_delete)} S3 files'
+    )
 
     return jsonify({
         'message': 'Site deleted successfully',
-        'removedFromTours': tour_count
+        'removedFromTours': tour_count,
+        'deletedS3Files': deleted_count
     }), 200

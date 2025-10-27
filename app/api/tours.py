@@ -303,6 +303,33 @@ def update_tour(tour_id):
             return jsonify({'error': 'Only live tours can be published'}), 400
         tour.is_public = bool(data['isPublic'])
 
+    # Update tour sites (many-to-many relationship)
+    if 'siteIds' in data:
+        from app.models.site import Site
+        from app.models.tour import TourSite
+
+        site_ids = data['siteIds']
+
+        # Validate that all site IDs exist
+        for site_id in site_ids:
+            site = Site.query.get(site_id)
+            if not site:
+                return jsonify({'error': f'Site {site_id} not found'}), 404
+
+        # Clear existing tour-site relationships
+        TourSite.query.filter_by(tour_id=tour.id).delete()
+
+        # Create new relationships with display order
+        for order, site_id in enumerate(site_ids, start=1):
+            tour_site = TourSite(
+                tour_id=tour.id,
+                site_id=site_id,
+                display_order=order
+            )
+            db.session.add(tour_site)
+
+        current_app.logger.info(f'Updated sites for tour {tour.id}: {len(site_ids)} sites')
+
     db.session.commit()
 
     current_app.logger.info(f'Updated tour: {tour.id} ({tour.name})')

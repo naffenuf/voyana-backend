@@ -155,3 +155,58 @@ export interface FeedbackFilters {
   limit?: number;
   offset?: number;
 }
+
+// Google Places types
+export interface PlaceSearchResult {
+  placeId: string;
+  name: string;
+  formattedAddress: string;
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+  types: string[];
+  rating?: number;
+  userRatingsTotal?: number;
+  businessStatus?: string;
+  icon?: string;
+}
+
+export interface PlacePhoto {
+  photoReference: string;
+  url: string;  // Raw S3 URL for saving to database
+  presignedUrl: string;  // Presigned URL for display
+  width: number;
+  height: number;
+  htmlAttributions: string[];
+}
+
+export interface PlaceDetails {
+  placeId: string;
+  name: string;
+  formattedAddress: string;
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+  types: string[];
+  rating?: number;
+  userRatingsTotal?: number;
+  phoneNumber?: string;
+  internationalPhoneNumber?: string;
+  website?: string;
+  url?: string;
+  editorialSummary?: string;
+  photos: PlacePhoto[];
+}
+
+export interface PlacesSearchResponse {
+  results: PlaceSearchResult[];
+  status: string;
+}
+
+export interface PhotoDownloadResponse {
+  url: string;
+  filename: string;
+  photoReference: string;
+}
