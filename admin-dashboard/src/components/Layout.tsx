@@ -41,10 +41,16 @@ export default function Layout() {
                 <NavLink to="/sites" className={navLinkClass}>
                   <span>Sites</span>
                 </NavLink>
+                <NavLink to="/heat-map" className={navLinkClass}>
+                  <span>Heat Map</span>
+                </NavLink>
                 {user?.role === 'admin' && (
                   <>
                     <NavLink to="/users" className={navLinkClass}>
                       <span>Users</span>
+                    </NavLink>
+                    <NavLink to="/neighborhoods" className={navLinkClass}>
+                      <span>Neighborhoods</span>
                     </NavLink>
                     <NavLink to="/ai-traces" className={navLinkClass}>
                       <span>AI Traces</span>

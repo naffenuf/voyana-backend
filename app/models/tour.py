@@ -96,6 +96,20 @@ class Tour(db.Model):
             'siteCount': len(self.tour_sites),
         }
 
+        # Include neighborhood description if available
+        if self.city and self.neighborhood:
+            from app.models.neighborhood import NeighborhoodDescription
+            neighborhood_desc = NeighborhoodDescription.query.filter_by(
+                city=self.city,
+                neighborhood=self.neighborhood
+            ).first()
+            if neighborhood_desc:
+                result['neighborhoodDescription'] = neighborhood_desc.description
+            else:
+                result['neighborhoodDescription'] = None
+        else:
+            result['neighborhoodDescription'] = None
+
         if include_sites:
             result['sites'] = [ts.site.to_dict() for ts in self.tour_sites]
             result['siteIds'] = [str(ts.site_id) for ts in self.tour_sites]

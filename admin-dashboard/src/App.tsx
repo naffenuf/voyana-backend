@@ -10,8 +10,10 @@ import Sites from './pages/Sites';
 import SiteDetail from './pages/SiteDetail';
 import Users from './pages/Users';
 import UserDetail from './pages/UserDetail';
+import Neighborhoods from './pages/Neighborhoods';
 import Profile from './pages/Profile';
 import AITraces from './pages/AITraces';
+import HeatMap from './pages/HeatMap';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -63,8 +65,10 @@ function AppRoutes() {
         <Route path="tours/:id" element={<TourDetail />} />
         <Route path="sites" element={<Sites />} />
         <Route path="sites/:id" element={<SiteDetail />} />
+        <Route path="heat-map" element={<HeatMap />} />
         <Route path="users" element={<Users />} />
         <Route path="users/:id" element={<UserDetail />} />
+        <Route path="neighborhoods" element={<Neighborhoods />} />
         <Route path="ai-traces" element={<AITraces />} />
         <Route path="profile" element={<Profile />} />
       </Route>

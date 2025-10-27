@@ -121,6 +121,7 @@ export interface TourFilters {
   neighborhood?: string;
   owner_id?: number;
   is_public?: boolean;
+  include_sites?: string; // 'true' or 'false' - include full sites data in response
   lat?: number;
   lon?: number;
   max_distance?: number;
@@ -255,4 +256,21 @@ export interface GenerateDescriptionRequest {
 export interface GenerateDescriptionResponse {
   description: string;
   traceId: string;
+}
+
+// Neighborhood types
+export interface Neighborhood {
+  id: number;
+  city: string;
+  neighborhood: string;
+  description: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface NeighborhoodFilters {
+  city?: string;
+  neighborhood?: string;
+  limit?: number;
+  offset?: number;
 }

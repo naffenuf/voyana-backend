@@ -47,6 +47,7 @@ def list_all_tours():
         - neighborhood: Filter by neighborhood
         - owner_id: Filter by owner ID
         - is_public: Filter by public status (true/false)
+        - include_sites: Include full sites data in response (true/false, default: false)
         - lat: Latitude for proximity search (requires lon)
         - lon: Longitude for proximity search (requires lat)
         - max_distance: Maximum distance in meters for proximity search (default: 5000)
@@ -68,6 +69,8 @@ def list_all_tours():
     neighborhood = request.args.get('neighborhood', '').strip()
     owner_id = request.args.get('owner_id')
     is_public = request.args.get('is_public')
+    include_sites_param = request.args.get('include_sites', 'false').lower()
+    include_sites = include_sites_param in ['true', '1', 'yes']
     lat = request.args.get('lat')
     lon = request.args.get('lon')
     max_distance = request.args.get('max_distance', 5000, type=int)
@@ -131,7 +134,7 @@ def list_all_tours():
                 if tour.latitude and tour.longitude:
                     distance = calculate_distance(lat, lon, tour.latitude, tour.longitude)
                     if distance <= max_distance:
-                        tour_dict = tour.to_dict(include_sites=False)
+                        tour_dict = tour.to_dict(include_sites=include_sites)
                         tour_dict['distance'] = round(distance, 2)
                         tours_with_distance.append(tour_dict)
 
@@ -140,9 +143,9 @@ def list_all_tours():
             tours_data = tours_with_distance
         except (ValueError, TypeError):
             current_app.logger.error(f'Invalid lat/lon values: {lat}, {lon}')
-            tours_data = [tour.to_dict(include_sites=False) for tour in tours]
+            tours_data = [tour.to_dict(include_sites=include_sites) for tour in tours]
     else:
-        tours_data = [tour.to_dict(include_sites=False) for tour in tours]
+        tours_data = [tour.to_dict(include_sites=include_sites) for tour in tours]
 
     return jsonify({
         'tours': tours_data,

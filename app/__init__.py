@@ -89,6 +89,7 @@ def register_blueprints(app):
     from app.api.feedback import feedback_bp
     from app.api.admin import admin_bp
     from app.api.places import places_bp
+    from app.api.neighborhoods import neighborhoods_bp
 
     # API blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -97,6 +98,7 @@ def register_blueprints(app):
     app.register_blueprint(media_bp, url_prefix='/api/media')
     app.register_blueprint(maps_bp, url_prefix='/api/maps')
     app.register_blueprint(feedback_bp, url_prefix='/api/feedback')
+    app.register_blueprint(neighborhoods_bp, url_prefix='/api/neighborhoods')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(places_bp)
 
