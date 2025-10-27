@@ -1,13 +1,23 @@
-import { useState, FormEvent, useEffect, useRef } from 'react';
+import { useState, FormEvent, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import type { LeafletMouseEvent } from 'leaflet';
 import { useAuth } from '../lib/auth';
 import { sitesApi, uploadApi } from '../lib/api';
 import { usePresignedUrl, usePresignedUrls } from '../hooks/usePresignedUrl';
 import FileUpload from '../components/FileUpload';
 import type { Site } from '../types';
+
+// Helper component to recenter map when coordinates change
+function MapRecenter({ center }: { center: [number, number] }) {
+  const map = useMap();
+  useEffect(() => {
+    map.setView(center, map.getZoom());
+  }, [center, map]);
+  return null;
+}
 
 export default function SiteDetail() {
   const { id } = useParams<{ id: string }>();
@@ -33,8 +43,6 @@ export default function SiteDetail() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [generatingAudio, setGeneratingAudio] = useState(false);
 
-  const [keywordInput, setKeywordInput] = useState('');
-  const [typeInput, setTypeInput] = useState('');
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: siteData, isLoading } = useQuery({
@@ -178,33 +186,21 @@ export default function SiteDetail() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const addKeyword = () => {
-    if (keywordInput.trim()) {
-      const keywords = formData.keywords || [];
-      setFormData((prev) => ({ ...prev, keywords: [...keywords, keywordInput.trim()] }));
-      setKeywordInput('');
-    }
+  const handleMarkerDragEnd = (event: LeafletMouseEvent) => {
+    const { lat, lng } = event.target.getLatLng();
+    setFormData((prev) => ({
+      ...prev,
+      latitude: lat,
+      longitude: lng,
+    }));
+    toast.success('Pin moved! Remember to save changes.');
   };
 
-  const removeKeyword = (index: number) => {
-    const keywords = [...(formData.keywords || [])];
-    keywords.splice(index, 1);
-    setFormData((prev) => ({ ...prev, keywords }));
-  };
-
-  const addType = () => {
-    if (typeInput.trim()) {
-      const types = formData.types || [];
-      setFormData((prev) => ({ ...prev, types: [...types, typeInput.trim()] }));
-      setTypeInput('');
-    }
-  };
-
-  const removeType = (index: number) => {
-    const types = [...(formData.types || [])];
-    types.splice(index, 1);
-    setFormData((prev) => ({ ...prev, types }));
-  };
+  // Memoize the map center to avoid unnecessary re-renders
+  const mapCenter = useMemo(
+    () => [formData.latitude || 0, formData.longitude || 0] as [number, number],
+    [formData.latitude, formData.longitude]
+  );
 
   if (isLoading) {
     return (
@@ -277,33 +273,6 @@ export default function SiteDetail() {
               />
             </div>
 
-            {/* Image */}
-
-            <div>
-              {presignedImageUrl && (
-                <img src={presignedImageUrl} alt="Site" className="mb-2 h-48 w-full rounded-lg object-cover" />
-              )}
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Image URL
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={formData.imageUrl || ''}
-                  onChange={(e) => updateField('imageUrl', e.target.value)}
-                  placeholder="https://s3.amazonaws.com/..."
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                />
-                <FileUpload
-                  type="image"
-                  folder="sites/images"
-                  onUploadComplete={(url) => updateField('imageUrl', url)}
-                  label="Upload Image"
-                  iconOnly
-                />
-              </div>
-            </div>
-
             {/* Audio */}
             <div>
               {presignedAudioUrl && (
@@ -352,20 +321,6 @@ export default function SiteDetail() {
               </button>
             </div>
 
-            {/* Web URL */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Web URL
-              </label>
-              <input
-                type="url"
-                value={formData.webUrl || ''}
-                onChange={(e) => updateField('webUrl', e.target.value)}
-                placeholder="https://example.com"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-              />
-            </div>
-
           {/* Coordinates Section */}
           <div className="space-y-4 pt-6 border-t border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
@@ -410,18 +365,23 @@ export default function SiteDetail() {
 
           {/* Location Section */}
           <div className="space-y-4 pt-6 border-t border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <span className="text-2xl">📍</span>
-              {formData.neighborhood && formData.city
-                ? `${formData.neighborhood}, ${formData.city}`
-                : formData.city || formData.neighborhood || 'Location'}
-            </h2>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <span className="text-2xl">📍</span>
+                {formData.neighborhood && formData.city
+                  ? `${formData.neighborhood}, ${formData.city}`
+                  : formData.city || formData.neighborhood || 'Location'}
+              </h2>
+              <p className="text-sm text-gray-500 mt-1 italic">
+                Drag the pin to adjust coordinates
+              </p>
+            </div>
 
-            {/* Map with single site marker */}
+            {/* Map with draggable marker */}
             {formData.latitude && formData.longitude && (
               <div className="h-96 rounded-xl overflow-hidden border-2 border-gray-200">
                 <MapContainer
-                  center={[formData.latitude, formData.longitude]}
+                  center={mapCenter}
                   zoom={15}
                   style={{ height: '100%', width: '100%' }}
                 >
@@ -429,13 +389,21 @@ export default function SiteDetail() {
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                     url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   />
-                  <Marker position={[formData.latitude, formData.longitude]}>
+                  <MapRecenter center={mapCenter} />
+                  <Marker
+                    position={mapCenter}
+                    draggable={true}
+                    eventHandlers={{
+                      dragend: handleMarkerDragEnd,
+                    }}
+                  >
                     <Popup>
                       <div>
                         <strong className="font-semibold">{formData.title}</strong>
                         {formData.description && (
                           <p className="text-xs mt-1 line-clamp-2">{formData.description}</p>
                         )}
+                        <p className="text-xs mt-2 text-gray-600 italic">Drag to move pin</p>
                       </div>
                     </Popup>
                   </Marker>
@@ -444,83 +412,14 @@ export default function SiteDetail() {
             )}
           </div>
 
-          {/* Discovery Section */}
+          {/* Address and Contact Info */}
           <div className="space-y-4 pt-6 border-t border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <span className="text-2xl">🔍</span>
-              Discovery
-            </h2>
-
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Keywords
-              </label>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  
-                  value={keywordInput}
-                  onChange={(e) => setKeywordInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
-                  placeholder="Add keyword and press Enter..."
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                />
-                
-                  <button
-                    type="button"
-                    onClick={addKeyword}
-                    className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-                  >
-                    Add
-                  </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(formData.keywords || []).map((keyword, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center gap-1 px-3 py-1 bg-gray-100 text-gray-700 rounded-full text-sm"
-                  >
-                    {keyword}
-                    
-                      <button
-                        type="button"
-                        onClick={() => removeKeyword(index)}
-                        className="text-gray-500 hover:text-red-600"
-                      >
-                        ✕
-                      </button>
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Google Places Section */}
-          <div className="space-y-4 pt-6 border-t border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <span className="text-2xl">🗺️</span>
-              Google Places
-            </h2>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Place ID
+                Address
               </label>
               <input
                 type="text"
-                disabled
-                value={formData.placeId || ''}
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-600"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Formatted Address
-              </label>
-              <input
-                type="text"
-                
                 value={formData.formatted_address || ''}
                 onChange={(e) => updateField('formatted_address', e.target.value)}
                 placeholder="123 Main St, City, State"
@@ -534,7 +433,6 @@ export default function SiteDetail() {
               </label>
               <input
                 type="tel"
-                
                 value={formData.phone_number || ''}
                 onChange={(e) => updateField('phone_number', e.target.value)}
                 placeholder="+1 (555) 123-4567"
@@ -544,45 +442,15 @@ export default function SiteDetail() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Types
+                Website
               </label>
-              <div className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  
-                  value={typeInput}
-                  onChange={(e) => setTypeInput(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addType())}
-                  placeholder="Add type and press Enter..."
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-                />
-                
-                  <button
-                    type="button"
-                    onClick={addType}
-                    className="px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors"
-                  >
-                    Add
-                  </button>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(formData.types || []).map((type, index) => (
-                  <span
-                    key={index}
-                    className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm"
-                  >
-                    {type}
-                    
-                      <button
-                        type="button"
-                        onClick={() => removeType(index)}
-                        className="text-blue-500 hover:text-red-600"
-                      >
-                        ✕
-                      </button>
-                  </span>
-                ))}
-              </div>
+              <input
+                type="url"
+                value={formData.webUrl || ''}
+                onChange={(e) => updateField('webUrl', e.target.value)}
+                placeholder="https://example.com"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+              />
             </div>
 
             {/* Google Photos */}
@@ -614,13 +482,44 @@ export default function SiteDetail() {
 
         {/* Information Sidebar - Right Column */}
         <div className="lg:col-span-1">
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/50 p-6 space-y-6 sticky top-6">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/50 p-6 space-y-6 sticky top-20">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <span className="text-2xl">ℹ️</span>
               Information
             </h2>
 
             <div className="space-y-4">
+              {/* Image */}
+              <div>
+                {presignedImageUrl && (
+                  <div className="mb-3 w-full rounded-lg overflow-hidden border-2 border-gray-200">
+                    <img
+                      src={presignedImageUrl}
+                      alt="Site"
+                      className="w-full h-auto"
+                    />
+                  </div>
+                )}
+                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+                  Image URL
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={formData.imageUrl || ''}
+                    onChange={(e) => updateField('imageUrl', e.target.value)}
+                    placeholder="https://s3.amazonaws.com/..."
+                    className="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
+                  />
+                  <FileUpload
+                    type="image"
+                    folder="sites/images"
+                    onUploadComplete={(url) => updateField('imageUrl', url)}
+                    label="Upload Image"
+                    iconOnly
+                  />
+                </div>
+              </div>
               {/* Place ID */}
               {siteData?.placeId && (
                 <div>
