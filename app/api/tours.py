@@ -466,9 +466,6 @@ def nearby_tours():
     else:
         query = query.filter(Tour.status == 'published')
 
-    # Default: only show live tours
-    query = query.filter(Tour.status == 'live')
-
     # Optional city filter
     if city:
         query = query.filter(Tour.city.ilike(city))
