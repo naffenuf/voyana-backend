@@ -8,6 +8,8 @@ import Tours from './pages/Tours';
 import TourDetail from './pages/TourDetail';
 import Sites from './pages/Sites';
 import SiteDetail from './pages/SiteDetail';
+import Users from './pages/Users';
+import UserDetail from './pages/UserDetail';
 import Profile from './pages/Profile';
 
 // Create a client
@@ -60,6 +62,8 @@ function AppRoutes() {
         <Route path="tours/:id" element={<TourDetail />} />
         <Route path="sites" element={<Sites />} />
         <Route path="sites/:id" element={<SiteDetail />} />
+        <Route path="users" element={<Users />} />
+        <Route path="users/:id" element={<UserDetail />} />
         <Route path="profile" element={<Profile />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

@@ -76,6 +76,62 @@ def list_users():
     }), 200
 
 
+@admin_users_bp.route('', methods=['POST'])
+@jwt_required()
+@admin_required()
+def create_user():
+    """
+    Create a new user (admin only).
+
+    Request body:
+        {
+            "email": "user@example.com",
+            "password": "SecurePassword123",
+            "name": "John Doe",
+            "role": "creator" | "admin" | "viewer" (optional, default: creator)
+        }
+
+    Returns:
+        {
+            "user": {...}
+        }
+    """
+    data = request.get_json()
+
+    # Validate required fields
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({'error': 'Email and password are required'}), 400
+
+    # Check if email already exists
+    if User.query.filter_by(email=data['email']).first():
+        return jsonify({'error': 'Email already registered'}), 400
+
+    # Validate role if provided
+    role = data.get('role', 'creator')
+    valid_roles = ['admin', 'creator', 'viewer']
+    if role not in valid_roles:
+        return jsonify({'error': f'Role must be one of: {", ".join(valid_roles)}'}), 400
+
+    # Validate password length
+    if len(data['password']) < 8:
+        return jsonify({'error': 'Password must be at least 8 characters'}), 400
+
+    # Create user
+    user = User(
+        email=data['email'],
+        name=data.get('name'),
+        role=role
+    )
+    user.set_password(data['password'])
+
+    db.session.add(user)
+    db.session.commit()
+
+    current_app.logger.info(f'Admin created user: {user.id} ({user.email}) with role {user.role}')
+
+    return jsonify({'user': user.to_dict()}), 201
+
+
 @admin_users_bp.route('/<int:user_id>', methods=['GET'])
 @jwt_required()
 @admin_required()
