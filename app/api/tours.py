@@ -82,16 +82,16 @@ def list_tours():
     # Build query
     query = Tour.query
 
-    # Access control: public tours OR user's own tours
+    # Access control: published tours OR user's own tours
     if user_id:
         query = query.filter(
             or_(
-                Tour.is_public == True,
+                Tour.status == 'published',
                 Tour.owner_id == user_id
             )
         )
     else:
-        query = query.filter(Tour.is_public == True)
+        query = query.filter(Tour.status == 'published')
 
     # Text search filter
     if search_text:
@@ -184,8 +184,8 @@ def get_tour(tour_id):
     except:
         pass
 
-    # Allow access if tour is public OR user is the owner
-    if not tour.is_public and (not user_id or tour.owner_id != user_id):
+    # Allow access if tour is published OR user is the owner OR user is admin
+    if tour.status != 'published' and (not user_id or tour.owner_id != user_id):
         # Check if user is admin
         try:
             claims = get_jwt()
@@ -264,6 +264,10 @@ def update_tour(tour_id):
     if not is_admin and tour.owner_id != user_id:
         return jsonify({'error': 'Unauthorized'}), 403
 
+    # Creators cannot edit tours that are in 'ready' status (submitted for review)
+    if not is_admin and tour.status == 'ready':
+        return jsonify({'error': 'Cannot edit tours that are submitted for review. An admin must revert to draft first.'}), 403
+
     data = request.get_json()
 
     if not data:
@@ -295,16 +299,30 @@ def update_tour(tour_id):
     if 'distanceMeters' in data:
         tour.distance_meters = data['distanceMeters']
 
-    # Status can be changed by owner, but not is_public (only admin can publish)
-    if 'status' in data and data['status'] in ['draft', 'live', 'archived']:
-        tour.status = data['status']
+    # Status changes
+    if 'status' in data:
+        new_status = data['status']
+        valid_statuses = ['draft', 'ready', 'published', 'archived']
 
-    # Only admin can change is_public
-    if is_admin and 'isPublic' in data:
-        # Validate: only live tours can be published
-        if bool(data['isPublic']) and tour.status != 'live':
-            return jsonify({'error': 'Only live tours can be published'}), 400
-        tour.is_public = bool(data['isPublic'])
+        if new_status not in valid_statuses:
+            return jsonify({'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'}), 400
+
+        # Creators can only change draft → ready
+        if not is_admin:
+            if tour.status == 'draft' and new_status == 'ready':
+                tour.status = new_status
+            elif tour.status == new_status:
+                # No change, allow
+                pass
+            else:
+                return jsonify({'error': f'Creators can only submit drafts for review (draft → ready)'}), 403
+        else:
+            # Admins can change to any status
+            tour.status = new_status
+            # Set published_at when status becomes published
+            if new_status == 'published' and not tour.published_at:
+                from datetime import datetime
+                tour.published_at = datetime.utcnow()
 
     # Update tour sites (many-to-many relationship)
     if 'siteIds' in data:
@@ -437,16 +455,16 @@ def nearby_tours():
     # Build base query
     query = Tour.query
 
-    # Access control: public tours OR user's own tours
+    # Access control: published tours OR user's own tours
     if user_id:
         query = query.filter(
             or_(
-                Tour.is_public == True,
+                Tour.status == 'published',
                 Tour.owner_id == user_id
             )
         )
     else:
-        query = query.filter(Tour.is_public == True)
+        query = query.filter(Tour.status == 'published')
 
     # Default: only show live tours
     query = query.filter(Tour.status == 'live')

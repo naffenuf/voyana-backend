@@ -46,7 +46,6 @@ def list_all_tours():
         - city: Filter by city
         - neighborhood: Filter by neighborhood
         - owner_id: Filter by owner ID
-        - is_public: Filter by public status (true/false)
         - include_sites: Include full sites data in response (true/false, default: false)
         - lat: Latitude for proximity search (requires lon)
         - lon: Longitude for proximity search (requires lat)
@@ -68,7 +67,6 @@ def list_all_tours():
     city = request.args.get('city', '').strip()
     neighborhood = request.args.get('neighborhood', '').strip()
     owner_id = request.args.get('owner_id')
-    is_public = request.args.get('is_public')
     include_sites_param = request.args.get('include_sites', 'false').lower()
     include_sites = include_sites_param in ['true', '1', 'yes']
     lat = request.args.get('lat')
@@ -111,11 +109,6 @@ def list_all_tours():
         except ValueError:
             pass
 
-    # Public status filter
-    if is_public is not None:
-        is_public_bool = is_public.lower() in ['true', '1', 'yes']
-        query = query.filter(Tour.is_public == is_public_bool)
-
     # Get total count
     total = query.count()
 
@@ -155,54 +148,3 @@ def list_all_tours():
     }), 200
 
 
-@admin_tours_bp.route('/<uuid:tour_id>/publish', methods=['PUT'])
-@jwt_required()
-@admin_required()
-def toggle_publish(tour_id):
-    """
-    Publish or unpublish a tour (admin only).
-
-    Request body:
-        {
-            "published": true | false
-        }
-
-    Publishing sets is_public=True and published_at to current time.
-    Unpublishing sets is_public=False.
-
-    Returns:
-        {
-            "tour": {...}
-        }
-    """
-    tour = Tour.query.get(tour_id)
-
-    if not tour:
-        return jsonify({'error': 'Tour not found'}), 404
-
-    data = request.get_json()
-
-    if not data or 'published' not in data:
-        return jsonify({'error': 'published field is required (true/false)'}), 400
-
-    should_publish = bool(data['published'])
-
-    if should_publish:
-        # Validate: only live tours can be published
-        if tour.status != 'live':
-            return jsonify({'error': 'Only live tours can be published. Current status: ' + tour.status}), 400
-
-        # Publish the tour
-        tour.is_public = True
-        if not tour.published_at:
-            tour.published_at = datetime.utcnow()
-    else:
-        # Unpublish the tour
-        tour.is_public = False
-
-    db.session.commit()
-
-    action = 'published' if should_publish else 'unpublished'
-    current_app.logger.info(f'Admin {action} tour: {tour.id} ({tour.name})')
-
-    return jsonify({'tour': tour.to_dict(include_sites=False)}), 200

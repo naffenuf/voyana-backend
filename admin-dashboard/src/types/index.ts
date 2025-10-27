@@ -28,8 +28,7 @@ export interface Tour {
   averageRating: number | null;
   ratingCount: number;
   calculatedRating: number | null;
-  status: 'draft' | 'live' | 'archived';
-  isPublic: boolean;
+  status: 'draft' | 'ready' | 'published' | 'archived';
   ownerId: number;
   ownerName: string | null;
   createdAt: string;
@@ -120,7 +119,6 @@ export interface TourFilters {
   city?: string;
   neighborhood?: string;
   owner_id?: number;
-  is_public?: boolean;
   include_sites?: string; // 'true' or 'false' - include full sites data in response
   lat?: number;
   lon?: number;

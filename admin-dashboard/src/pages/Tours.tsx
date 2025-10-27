@@ -6,6 +6,17 @@ import { useAuth } from '../lib/auth';
 import { toursApi, adminToursApi } from '../lib/api';
 import type { Tour } from '../types';
 
+// Helper function to get status display info
+function getStatusDisplay(status: string) {
+  const statusMap: Record<string, { label: string; className: string }> = {
+    draft: { label: 'Draft', className: 'bg-gray-100 text-gray-600' },
+    ready: { label: 'Ready for Review', className: 'bg-blue-100 text-blue-700' },
+    published: { label: 'Published', className: 'bg-[#944F2E] text-white' },
+    archived: { label: 'Archived', className: 'bg-gray-200 text-gray-500' },
+  };
+  return statusMap[status] || { label: status, className: 'bg-gray-100 text-gray-600' };
+}
+
 export default function Tours() {
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -27,18 +38,6 @@ export default function Tours() {
     },
   });
 
-  const publishMutation = useMutation({
-    mutationFn: ({ id, published }: { id: string; published: boolean }) =>
-      adminToursApi.publish(id, published),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tours'] });
-      toast.success('Tour updated successfully');
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to update tour');
-    },
-  });
-
   const deleteMutation = useMutation({
     mutationFn: (id: string) => toursApi.delete(id),
     onSuccess: () => {
@@ -49,11 +48,6 @@ export default function Tours() {
       toast.error(error.response?.data?.error || 'Failed to delete tour');
     },
   });
-
-  const handlePublish = (tour: Tour) => {
-    if (!isAdmin) return;
-    publishMutation.mutate({ id: tour.id, published: !tour.isPublic });
-  };
 
   const handleDelete = (tour: Tour) => {
     if (!confirm(`Are you sure you want to delete "${tour.name}"?`)) return;
@@ -93,7 +87,8 @@ export default function Tours() {
           >
             <option value="">All Statuses</option>
             <option value="draft">Draft</option>
-            <option value="live">Live</option>
+            <option value="ready">Ready for Review</option>
+            <option value="published">Published</option>
             <option value="archived">Archived</option>
           </select>
           <input
@@ -158,15 +153,14 @@ export default function Tours() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span
-                        className={`px-3 py-1 text-xs font-medium rounded-full ${
-                          tour.isPublic
-                            ? 'bg-[#944F2E] text-white'
-                            : 'bg-gray-100 text-gray-600'
-                        }`}
-                      >
-                        {tour.isPublic ? 'Published' : 'Unpublished'}
-                      </span>
+                      {(() => {
+                        const statusDisplay = getStatusDisplay(tour.status);
+                        return (
+                          <span className={`px-3 py-1 text-xs font-medium rounded-full ${statusDisplay.className}`}>
+                            {statusDisplay.label}
+                          </span>
+                        );
+                      })()}
                       <button
                         onClick={(e) => {
                           e.preventDefault();

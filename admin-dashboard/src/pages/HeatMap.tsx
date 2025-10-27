@@ -150,18 +150,16 @@ export default function HeatMap() {
   } | null>(null);
 
   // Filter states
-  const [statusFilter, setStatusFilter] = useState<string>('live');
-  const [publishedFilter, setPublishedFilter] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<string>('published');
   const [cityFilter, setCityFilter] = useState<string>('');
   const [neighborhoodFilter, setNeighborhoodFilter] = useState<string>('');
 
   // Fetch all tours with sites (admins see all, creators see their own)
   const { data: toursData, isLoading } = useQuery({
-    queryKey: ['tours-heat-map', isAdmin, statusFilter, publishedFilter, cityFilter, neighborhoodFilter],
+    queryKey: ['tours-heat-map', isAdmin, statusFilter, cityFilter, neighborhoodFilter],
     queryFn: () => {
       const filters = {
         status: statusFilter || undefined,
-        is_public: publishedFilter ? publishedFilter === 'true' : undefined,
         city: cityFilter || undefined,
         neighborhood: neighborhoodFilter || undefined,
         limit: 10000, // Get all tours (can be paginated in future)
@@ -232,8 +230,7 @@ export default function HeatMap() {
   const defaultCenter: [number, number] = [40.7128, -74.006]; // NYC fallback
 
   const handleClearFilters = () => {
-    setStatusFilter('live');
-    setPublishedFilter('');
+    setStatusFilter('published');
     setCityFilter('');
     setNeighborhoodFilter('');
   };
@@ -300,25 +297,10 @@ export default function HeatMap() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47]"
               >
                 <option value="">All</option>
-                <option value="live">Live</option>
                 <option value="draft">Draft</option>
+                <option value="ready">Ready for Review</option>
+                <option value="published">Published</option>
                 <option value="archived">Archived</option>
-              </select>
-            </div>
-
-            {/* Published filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Published
-              </label>
-              <select
-                value={publishedFilter}
-                onChange={(e) => setPublishedFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47]"
-              >
-                <option value="">All</option>
-                <option value="true">Published</option>
-                <option value="false">Not Published</option>
               </select>
             </div>
 

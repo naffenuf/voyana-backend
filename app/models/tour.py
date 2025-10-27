@@ -44,8 +44,7 @@ class Tour(db.Model):
     rating_count = db.Column(db.Integer, default=0)
 
     # Status
-    status = db.Column(db.String(20), default='draft', nullable=False)  # 'draft', 'live', 'archived'
-    is_public = db.Column(db.Boolean, default=False, nullable=False)
+    status = db.Column(db.String(20), default='draft', nullable=False)  # 'draft', 'ready', 'published', 'archived'
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -87,7 +86,6 @@ class Tour(db.Model):
             'ratingCount': self.rating_count,
             'calculatedRating': self.get_calculated_rating(),
             'status': self.status,
-            'isPublic': self.is_public,
             'ownerId': self.owner_id,
             'ownerName': self.owner.name if self.owner else None,
             'createdAt': self.created_at.isoformat(),

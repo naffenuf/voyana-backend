@@ -106,16 +106,6 @@ export default function TourDetail() {
     },
   });
 
-  const publishMutation = useMutation({
-    mutationFn: (published: boolean) => adminToursApi.publish(id!, published),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tour', id] });
-      toast.success('Tour updated successfully');
-    },
-    onError: (error: any) => {
-      toast.error(error.response?.data?.error || 'Failed to update tour');
-    },
-  });
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -277,6 +267,22 @@ export default function TourDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Content - Left Column */}
         <div className="lg:col-span-2">
+          {/* Edit Lock Warning */}
+          {!isAdmin && formData.status === 'ready' && (
+            <div className="bg-amber-50 border-l-4 border-amber-400 p-4 mb-6 rounded-lg">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <span className="text-2xl">⚠️</span>
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-semibold text-amber-800">Tour Under Review</h3>
+                  <p className="text-sm text-amber-700 mt-1">
+                    This tour is currently under review and cannot be edited. An admin will either publish it or return it to draft status.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
           <form id="tour-form" onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/50 overflow-hidden">
             <div className="p-8 pb-32 space-y-6">
               {/* Tour Name */}
@@ -290,7 +296,8 @@ export default function TourDetail() {
                   value={formData.name}
                   onChange={(e) => updateField('name', e.target.value)}
                   placeholder="Enter tour name..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
+                  disabled={!isAdmin && formData.status === 'ready'}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:opacity-50 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -359,7 +366,8 @@ export default function TourDetail() {
                   value={formData.description || ''}
                   onChange={(e) => updateField('description', e.target.value)}
                   placeholder="Describe the tour..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white resize-none overflow-hidden"
+                  disabled={!isAdmin && formData.status === 'ready'}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ minHeight: '120px' }}
                 />
               </div>
@@ -426,7 +434,8 @@ export default function TourDetail() {
                     <button
                       type="button"
                       onClick={() => setShowAddSiteWizard(true)}
-                      className="px-4 py-2 bg-[#8B6F47] hover:bg-[#6F5838] text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium"
+                      disabled={!isAdmin && formData.status === 'ready'}
+                      className="px-4 py-2 bg-[#8B6F47] hover:bg-[#6F5838] text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span className="text-lg">+</span>
                       Add Site
@@ -547,7 +556,7 @@ export default function TourDetail() {
                 <button
                   type="button"
                   onClick={handleSaveChanges}
-                  disabled={!hasUnsavedChanges || saveMutation.isPending}
+                  disabled={!hasUnsavedChanges || saveMutation.isPending || (!isAdmin && formData.status === 'ready')}
                   className="px-5 py-2.5 bg-white hover:bg-gray-50 text-[#8B6F47] border-2 border-[#8B6F47] text-sm font-semibold rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {saveMutation.isPending ? (
@@ -562,7 +571,7 @@ export default function TourDetail() {
                 <button
                   type="button"
                   onClick={handleSaveAndClose}
-                  disabled={!hasUnsavedChanges || saveMutation.isPending}
+                  disabled={!hasUnsavedChanges || saveMutation.isPending || (!isAdmin && formData.status === 'ready')}
                   className="px-5 py-2.5 bg-[#8B6F47] hover:bg-[#6F5838] text-white text-sm font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {saveMutation.isPending ? (
@@ -597,17 +606,26 @@ export default function TourDetail() {
                   <select
                     value={formData.status}
                     onChange={(e) => updateField('status', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white text-sm"
+                    disabled={!isAdmin && formData.status === 'ready'}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="draft">✏️ Draft</option>
-                    <option value="live">✅ Live</option>
+                    <option value="ready">🔍 Ready for Review</option>
+                    <option value="published">✅ Published</option>
                     <option value="archived">📦 Archived</option>
                   </select>
                   <div className="text-xs text-gray-500 mt-1">
                     {formData.status === 'draft' && 'Work in progress'}
-                    {formData.status === 'live' && 'Active and ready'}
+                    {formData.status === 'ready' && 'Submitted for review'}
+                    {formData.status === 'published' && 'Visible to all users'}
                     {formData.status === 'archived' && 'No longer active'}
                   </div>
+                  {!isAdmin && formData.status === 'ready' && (
+                    <div className="text-xs text-amber-600 mt-2 flex items-start gap-1">
+                      <span>⚠️</span>
+                      <span>This tour is under review and cannot be edited until published or returned to draft by an admin.</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -664,55 +682,6 @@ export default function TourDetail() {
                 )}
               </div>
 
-              {/* Published Status */}
-              <div>
-                <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
-                  Published
-                </label>
-                {isAdmin && !isNew ? (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => publishMutation.mutate(!tourData?.isPublic)}
-                      disabled={publishMutation.isPending || formData.status !== 'live'}
-                      className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        tourData?.isPublic ? 'bg-green-500' : 'bg-gray-300'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform ${
-                          tourData?.isPublic ? 'translate-x-9' : 'translate-x-1'
-                        }`}
-                      />
-                      <span className="sr-only">Toggle public status</span>
-                    </button>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {formData.status !== 'live' ? (
-                        <span className="text-amber-600">Tour must be &apos;live&apos; to be published</span>
-                      ) : tourData?.isPublic ? (
-                        'Visible to everyone'
-                      ) : (
-                        'Only visible to owner and admins'
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold ${
-                        tourData?.isPublic
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}
-                    >
-                      {tourData?.isPublic ? '🌐 Public' : '🔒 Private'}
-                    </span>
-                    <div className="text-xs text-gray-500 mt-1">
-                      {tourData?.isPublic ? 'Visible to everyone' : 'Only visible to owner and admins'}
-                    </div>
-                  </>
-                )}
-              </div>
 
               {/* Owner */}
               <div>
