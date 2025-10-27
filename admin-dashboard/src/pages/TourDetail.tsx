@@ -26,6 +26,8 @@ export default function TourDetail() {
     durationMinutes: undefined,
     distanceMeters: undefined,
   });
+  const [originalData, setOriginalData] = useState<Partial<Tour> | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const { data: tourData, isLoading } = useQuery({
     queryKey: ['tour', id],
@@ -36,8 +38,21 @@ export default function TourDetail() {
   useEffect(() => {
     if (tourData) {
       setFormData(tourData);
+      setOriginalData(tourData);
+      setHasUnsavedChanges(false);
     }
   }, [tourData]);
+
+  useEffect(() => {
+    if (originalData) {
+      const changed = JSON.stringify(formData) !== JSON.stringify(originalData);
+      setHasUnsavedChanges(changed);
+    } else if (isNew) {
+      // For new tours, check if any meaningful data has been entered
+      const changed = formData.name !== '' || formData.description !== '';
+      setHasUnsavedChanges(changed);
+    }
+  }, [formData, originalData, isNew]);
 
   // Presign S3 URLs for display
   const presignedImageUrl = usePresignedUrl(formData.imageUrl);
@@ -46,10 +61,12 @@ export default function TourDetail() {
   const saveMutation = useMutation({
     mutationFn: (data: Partial<Tour>) =>
       isNew ? toursApi.create(data) : toursApi.update(id!, data),
-    onSuccess: () => {
+    onSuccess: (savedTour) => {
       queryClient.invalidateQueries({ queryKey: ['tours'] });
-      toast.success(isNew ? 'Tour created!' : 'Tour updated!');
-      navigate('/tours');
+      queryClient.invalidateQueries({ queryKey: ['tour', id] });
+      toast.success(isNew ? 'Tour created!' : 'Tour saved!');
+      setOriginalData(savedTour);
+      setHasUnsavedChanges(false);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to save tour');
@@ -69,11 +86,63 @@ export default function TourDetail() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+  };
+
+  const handleSaveChanges = () => {
     if (!formData.name) {
       toast.error('Tour name is required');
       return;
     }
     saveMutation.mutate(formData);
+  };
+
+  const handleSaveAndClose = () => {
+    if (!formData.name) {
+      toast.error('Tour name is required');
+      return;
+    }
+    saveMutation.mutate(formData, {
+      onSuccess: () => {
+        navigate('/tours');
+      },
+    });
+  };
+
+  const handleDiscardChanges = () => {
+    if (originalData) {
+      setFormData(originalData);
+      setHasUnsavedChanges(false);
+      toast.success('Changes discarded');
+    } else if (isNew) {
+      // Reset to empty state for new tours
+      setFormData({
+        name: '',
+        description: '',
+        status: 'draft',
+        imageUrl: '',
+        audioUrl: '',
+        mapImageUrl: '',
+        musicUrls: [],
+        durationMinutes: undefined,
+        distanceMeters: undefined,
+      });
+      setHasUnsavedChanges(false);
+      toast.success('Changes discarded');
+    }
+  };
+
+  const handleDiscardAndClose = () => {
+    navigate('/tours');
+  };
+
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+        navigate('/tours');
+      }
+    } else {
+      navigate('/tours');
+    }
   };
 
   const updateField = (field: keyof Tour, value: any) => {
@@ -101,7 +170,7 @@ export default function TourDetail() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B6F47] mb-4"></div>
           <p className="text-gray-600 font-medium">Loading tour...</p>
         </div>
       </div>
@@ -112,17 +181,24 @@ export default function TourDetail() {
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            {isNew ? '✨ Create New Tour' : '✏️ Edit Tour'}
-          </h1>
-          <p className="text-gray-600 mt-1">
-            {isNew ? 'Fill in the details to create a new tour' : 'Update tour information'}
-          </p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {isNew ? 'Create New Tour' : 'Edit Tour'}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {isNew ? 'Fill in the details to create a new tour' : 'Update tour information'}
+            </p>
+          </div>
+          {hasUnsavedChanges && (
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+              Unsaved changes
+            </span>
+          )}
         </div>
         <button
           type="button"
-          onClick={() => navigate('/tours')}
+          onClick={handleBack}
           className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all"
         >
           ← Back
@@ -151,7 +227,7 @@ export default function TourDetail() {
                     value={formData.name}
                     onChange={(e) => updateField('name', e.target.value)}
                     placeholder="Enter tour name..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
                   />
                 </div>
 
@@ -164,7 +240,7 @@ export default function TourDetail() {
                     value={formData.description || ''}
                     onChange={(e) => updateField('description', e.target.value)}
                     placeholder="Describe the tour..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white resize-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white resize-none"
                   />
                 </div>
               </div>
@@ -185,7 +261,7 @@ export default function TourDetail() {
                     value={formData.imageUrl || ''}
                     onChange={(e) => updateField('imageUrl', e.target.value)}
                     placeholder="https://s3.amazonaws.com/..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
                   />
                   {presignedImageUrl && (
                     <img src={presignedImageUrl} alt="Tour" className="mt-2 h-32 rounded-lg object-cover" />
@@ -201,7 +277,7 @@ export default function TourDetail() {
                     value={formData.audioUrl || ''}
                     onChange={(e) => updateField('audioUrl', e.target.value)}
                     placeholder="https://s3.amazonaws.com/..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
                   />
                   {formData.audioUrl && (
                     <audio controls className="mt-2 w-full">
@@ -219,7 +295,7 @@ export default function TourDetail() {
                     value={formData.mapImageUrl || ''}
                     onChange={(e) => updateField('mapImageUrl', e.target.value)}
                     placeholder="https://s3.amazonaws.com/..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
                   />
                   {presignedMapImageUrl && (
                     <img src={presignedMapImageUrl} alt="Map" className="mt-2 h-32 rounded-lg object-cover" />
@@ -247,7 +323,7 @@ export default function TourDetail() {
                           value={url}
                           onChange={(e) => updateMusicUrl(index, e.target.value)}
                           placeholder="https://s3.amazonaws.com/..."
-                          className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                          className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
                         />
                         <button
                           type="button"
@@ -279,7 +355,7 @@ export default function TourDetail() {
                       value={formData.durationMinutes || ''}
                       onChange={(e) => updateField('durationMinutes', parseInt(e.target.value) || null)}
                       placeholder="60"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
                     />
                   </div>
 
@@ -292,7 +368,7 @@ export default function TourDetail() {
                       value={formData.distanceMeters || ''}
                       onChange={(e) => updateField('distanceMeters', parseFloat(e.target.value) || null)}
                       placeholder="1500"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
                     />
                   </div>
                 </div>
@@ -347,13 +423,13 @@ export default function TourDetail() {
                         <Link
                           key={site.id}
                           to={`/sites/${site.id}`}
-                          className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 transition-colors group"
+                          className="flex items-start gap-3 p-3 rounded-lg hover:bg-[#F6EDD9]/50 transition-colors group"
                         >
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-semibold text-sm">
+                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#F6EDD9] text-[#8B6F47] flex items-center justify-center font-semibold text-sm">
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors">
+                            <div className="font-medium text-gray-900 group-hover:text-[#8B6F47] transition-colors">
                               {site.title}
                             </div>
                             {site.city && site.neighborhood && (
@@ -362,7 +438,7 @@ export default function TourDetail() {
                               </div>
                             )}
                           </div>
-                          <div className="flex-shrink-0 text-gray-400 group-hover:text-blue-600">
+                          <div className="flex-shrink-0 text-gray-400 group-hover:text-[#8B6F47]">
                             →
                           </div>
                         </Link>
@@ -376,29 +452,62 @@ export default function TourDetail() {
           </form>
 
           {/* Form Actions - Fixed Bottom */}
-          <div className="fixed bottom-0 left-0 right-0 z-10 bg-white border-t border-gray-200 pl-64 pr-6 py-4 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => navigate('/tours')}
-              className="px-6 py-3 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-300 rounded-xl transition-all duration-200"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              form="tour-form"
-              disabled={saveMutation.isPending}
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-            >
-              {saveMutation.isPending ? (
-                <span className="flex items-center gap-2">
-                  <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Saving...
-                </span>
-              ) : (
-                <span>{isNew ? '✨ Create Tour' : '💾 Save Changes'}</span>
-              )}
-            </button>
+          <div className="fixed bottom-0 left-0 right-0 z-10 bg-[#F6EDD9]/95 backdrop-blur-lg border-t border-gray-200/50 pl-64 pr-6 py-4 shadow-lg">
+            <div className="flex justify-between items-center">
+              {/* Left side - Discard buttons */}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleDiscardChanges}
+                  disabled={!hasUnsavedChanges || saveMutation.isPending}
+                  className="px-5 py-2.5 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Discard Changes
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDiscardAndClose}
+                  disabled={saveMutation.isPending}
+                  className="px-5 py-2.5 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Discard & Close
+                </button>
+              </div>
+
+              {/* Right side - Save buttons */}
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleSaveChanges}
+                  disabled={!hasUnsavedChanges || saveMutation.isPending}
+                  className="px-5 py-2.5 bg-white hover:bg-gray-50 text-[#8B6F47] border-2 border-[#8B6F47] text-sm font-semibold rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {saveMutation.isPending ? (
+                    <span className="flex items-center gap-2">
+                      <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-[#8B6F47]"></div>
+                      Saving...
+                    </span>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveAndClose}
+                  disabled={!hasUnsavedChanges || saveMutation.isPending}
+                  className="px-5 py-2.5 bg-[#8B6F47] hover:bg-[#6F5838] text-white text-sm font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {saveMutation.isPending ? (
+                    <span className="flex items-center gap-2">
+                      <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Saving...
+                    </span>
+                  ) : (
+                    'Save & Close'
+                  )}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -420,7 +529,7 @@ export default function TourDetail() {
                   <select
                     value={formData.status}
                     onChange={(e) => updateField('status', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white text-sm"
                   >
                     <option value="draft">✏️ Draft</option>
                     <option value="live">✅ Live</option>
@@ -474,7 +583,7 @@ export default function TourDetail() {
                       type="button"
                       onClick={() => publishMutation.mutate(!tourData?.isPublic)}
                       disabled={publishMutation.isPending || formData.status !== 'live'}
-                      className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      className={`relative inline-flex h-8 w-16 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed ${
                         tourData?.isPublic ? 'bg-green-500' : 'bg-gray-300'
                       }`}
                     >

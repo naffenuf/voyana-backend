@@ -28,6 +28,8 @@ export default function SiteDetail() {
     types: [],
     phone_number: '',
   });
+  const [originalData, setOriginalData] = useState<Partial<Site> | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const [keywordInput, setKeywordInput] = useState('');
   const [typeInput, setTypeInput] = useState('');
@@ -41,8 +43,21 @@ export default function SiteDetail() {
   useEffect(() => {
     if (siteData) {
       setFormData(siteData);
+      setOriginalData(siteData);
+      setHasUnsavedChanges(false);
     }
   }, [siteData]);
+
+  useEffect(() => {
+    if (originalData) {
+      const changed = JSON.stringify(formData) !== JSON.stringify(originalData);
+      setHasUnsavedChanges(changed);
+    } else if (isNew) {
+      // For new sites, check if any meaningful data has been entered
+      const changed = formData.title !== '' || formData.description !== '';
+      setHasUnsavedChanges(changed);
+    }
+  }, [formData, originalData, isNew]);
 
   // Presign S3 URLs for display
   const presignedImageUrl = usePresignedUrl(formData.imageUrl);
@@ -52,10 +67,12 @@ export default function SiteDetail() {
   const saveMutation = useMutation({
     mutationFn: (data: Partial<Site>) =>
       isNew ? sitesApi.create(data) : sitesApi.update(id!, data),
-    onSuccess: () => {
+    onSuccess: (savedSite) => {
       queryClient.invalidateQueries({ queryKey: ['sites'] });
-      toast.success(isNew ? 'Site created!' : 'Site updated!');
-      navigate('/sites');
+      queryClient.invalidateQueries({ queryKey: ['site', id] });
+      toast.success(isNew ? 'Site created!' : 'Site saved!');
+      setOriginalData(savedSite);
+      setHasUnsavedChanges(false);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to save site');
@@ -64,11 +81,65 @@ export default function SiteDetail() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+  };
+
+  const handleSaveChanges = () => {
     if (!formData.title || formData.latitude === undefined || formData.longitude === undefined) {
       toast.error('Title, latitude, and longitude are required');
       return;
     }
     saveMutation.mutate(formData);
+  };
+
+  const handleSaveAndClose = () => {
+    if (!formData.title || formData.latitude === undefined || formData.longitude === undefined) {
+      toast.error('Title, latitude, and longitude are required');
+      return;
+    }
+    saveMutation.mutate(formData, {
+      onSuccess: () => {
+        navigate('/sites');
+      },
+    });
+  };
+
+  const handleDiscardChanges = () => {
+    if (originalData) {
+      setFormData(originalData);
+      setHasUnsavedChanges(false);
+      toast.success('Changes discarded');
+    } else if (isNew) {
+      // Reset to empty state for new sites
+      setFormData({
+        title: '',
+        description: '',
+        latitude: 0,
+        longitude: 0,
+        imageUrl: '',
+        audioUrl: '',
+        webUrl: '',
+        keywords: [],
+        formatted_address: '',
+        types: [],
+        phone_number: '',
+      });
+      setHasUnsavedChanges(false);
+      toast.success('Changes discarded');
+    }
+  };
+
+  const handleDiscardAndClose = () => {
+    navigate('/sites');
+  };
+
+  const handleBack = () => {
+    if (hasUnsavedChanges) {
+      if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+        navigate('/sites');
+      }
+    } else {
+      navigate('/sites');
+    }
   };
 
   const updateField = (field: keyof Site, value: any) => {
@@ -107,7 +178,7 @@ export default function SiteDetail() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-[#8B6F47] mb-4"></div>
           <p className="text-gray-600 font-medium">Loading site...</p>
         </div>
       </div>
@@ -119,19 +190,26 @@ export default function SiteDetail() {
     <div className="max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-            {isNew ? '✨ Create New Site' : '✏️ Edit Site'}
-          </h1>
-          <p className="text-gray-600 mt-1">
-            {isNew
-              ? 'Fill in the details to create a new site'
-              : 'Update site information'}
-          </p>
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {isNew ? 'Create New Site' : 'Edit Site'}
+            </h1>
+            <p className="text-gray-600 mt-1">
+              {isNew
+                ? 'Fill in the details to create a new site'
+                : 'Update site information'}
+            </p>
+          </div>
+          {hasUnsavedChanges && (
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
+              Unsaved changes
+            </span>
+          )}
         </div>
         <button
           type="button"
-          onClick={() => navigate('/sites')}
+          onClick={handleBack}
           className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all"
         >
           ← Back
@@ -162,7 +240,7 @@ export default function SiteDetail() {
                 value={formData.title}
                 onChange={(e) => updateField('title', e.target.value)}
                 placeholder="Enter site title..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -176,7 +254,7 @@ export default function SiteDetail() {
                 value={formData.description || ''}
                 onChange={(e) => updateField('description', e.target.value)}
                 placeholder="Describe the site..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -198,7 +276,7 @@ export default function SiteDetail() {
                 value={formData.imageUrl || ''}
                 onChange={(e) => updateField('imageUrl', e.target.value)}
                 placeholder="https://s3.amazonaws.com/..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
               {presignedImageUrl && (
                 <img src={presignedImageUrl} alt="Site" className="mt-2 h-32 rounded-lg object-cover" />
@@ -215,7 +293,7 @@ export default function SiteDetail() {
                 value={formData.audioUrl || ''}
                 onChange={(e) => updateField('audioUrl', e.target.value)}
                 placeholder="https://s3.amazonaws.com/..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
               {presignedAudioUrl && (
                 <audio controls className="mt-2 w-full">
@@ -234,7 +312,7 @@ export default function SiteDetail() {
                 value={formData.webUrl || ''}
                 onChange={(e) => updateField('webUrl', e.target.value)}
                 placeholder="https://example.com"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
           </div>
@@ -259,7 +337,7 @@ export default function SiteDetail() {
                   value={formData.latitude}
                   onChange={(e) => updateField('latitude', parseFloat(e.target.value))}
                   placeholder="e.g., 37.7749"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </div>
 
@@ -275,7 +353,7 @@ export default function SiteDetail() {
                   value={formData.longitude}
                   onChange={(e) => updateField('longitude', parseFloat(e.target.value))}
                   placeholder="e.g., -122.4194"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
               </div>
             </div>
@@ -336,7 +414,7 @@ export default function SiteDetail() {
                   onChange={(e) => setKeywordInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addKeyword())}
                   placeholder="Add keyword and press Enter..."
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
                 
                   <button
@@ -397,7 +475,7 @@ export default function SiteDetail() {
                 value={formData.formatted_address || ''}
                 onChange={(e) => updateField('formatted_address', e.target.value)}
                 placeholder="123 Main St, City, State"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -411,7 +489,7 @@ export default function SiteDetail() {
                 value={formData.phone_number || ''}
                 onChange={(e) => updateField('phone_number', e.target.value)}
                 placeholder="+1 (555) 123-4567"
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
 
@@ -427,7 +505,7 @@ export default function SiteDetail() {
                   onChange={(e) => setTypeInput(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addType())}
                   placeholder="Add type and press Enter..."
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
                 />
                 
                   <button
@@ -542,30 +620,62 @@ export default function SiteDetail() {
       </div>
 
       {/* Form Actions - Fixed Bottom */}
-      <div className="fixed bottom-0 left-0 right-0 z-10 bg-white border-t border-gray-200 pl-64 pr-6 py-4 flex justify-end gap-3">
-        <button
-          type="button"
-          onClick={() => navigate('/sites')}
-          className="px-6 py-3 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-300 rounded-xl transition-all duration-200"
-        >
-          Cancel
-        </button>
+      <div className="fixed bottom-0 left-0 right-0 z-10 bg-[#F6EDD9]/95 backdrop-blur-lg border-t border-gray-200/50 pl-64 pr-6 py-4 shadow-lg">
+        <div className="flex justify-between items-center">
+          {/* Left side - Discard buttons */}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleDiscardChanges}
+              disabled={!hasUnsavedChanges || saveMutation.isPending}
+              className="px-5 py-2.5 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Discard Changes
+            </button>
+            <button
+              type="button"
+              onClick={handleDiscardAndClose}
+              disabled={saveMutation.isPending}
+              className="px-5 py-2.5 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Discard & Close
+            </button>
+          </div>
 
-        <button
-          type="submit"
-          form="site-form"
-          disabled={saveMutation.isPending}
-          className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-sm font-semibold rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-        >
-          {saveMutation.isPending ? (
-            <span className="flex items-center gap-2">
-              <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-              Saving...
-            </span>
-          ) : (
-            <span>{isNew ? '✨ Create Site' : '💾 Save Changes'}</span>
-          )}
-        </button>
+          {/* Right side - Save buttons */}
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={handleSaveChanges}
+              disabled={!hasUnsavedChanges || saveMutation.isPending}
+              className="px-5 py-2.5 bg-white hover:bg-gray-50 text-[#8B6F47] border-2 border-[#8B6F47] text-sm font-semibold rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saveMutation.isPending ? (
+                <span className="flex items-center gap-2">
+                  <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-[#8B6F47]"></div>
+                  Saving...
+                </span>
+              ) : (
+                'Save Changes'
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveAndClose}
+              disabled={!hasUnsavedChanges || saveMutation.isPending}
+              className="px-5 py-2.5 bg-[#8B6F47] hover:bg-[#6F5838] text-white text-sm font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saveMutation.isPending ? (
+                <span className="flex items-center gap-2">
+                  <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Saving...
+                </span>
+              ) : (
+                'Save & Close'
+              )}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

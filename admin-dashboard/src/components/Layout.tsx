@@ -7,40 +7,42 @@ export default function Layout() {
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
       isActive
-        ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/50'
+        ? 'bg-[#8B6F47] text-white shadow-md'
         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
     }`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Navigation */}
-      <nav className="bg-white/80 backdrop-blur-lg shadow-lg border-b border-gray-200/50 sticky top-0 z-50">
+      <nav className="bg-[#F6EDD9]/95 backdrop-blur-lg shadow-lg border-b border-gray-200/50 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center space-x-8">
               {/* Logo */}
-              <div className="flex items-center space-x-2">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                  <span className="text-white font-bold text-lg">V</span>
-                </div>
+              <div className="flex items-center space-x-3">
+                <img
+                  src="/VoyanaLogoNoName.jpg"
+                  alt="Voyana Logo"
+                  className="w-14 h-14 object-contain"
+                />
                 <div>
-                  <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  <h1 className="text-xl font-bold text-gray-900">
                     Voyana
                   </h1>
-                  <p className="text-xs text-gray-500">Admin Portal</p>
+                  <p className="text-xs text-[#8B6F47] font-medium">Admin Portal</p>
                 </div>
               </div>
 
               {/* Navigation Links */}
               <div className="flex space-x-1">
                 <NavLink to="/tours" className={navLinkClass}>
-                  <span>🗺️ Tours</span>
+                  <span>Tours</span>
                 </NavLink>
                 <NavLink to="/sites" className={navLinkClass}>
-                  <span>📍 Sites</span>
+                  <span>Sites</span>
                 </NavLink>
                 <NavLink to="/profile" className={navLinkClass}>
-                  <span>👤 Profile</span>
+                  <span>Profile</span>
                 </NavLink>
               </div>
             </div>
