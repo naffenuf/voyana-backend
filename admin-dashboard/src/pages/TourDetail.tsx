@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
 import { toursApi, adminToursApi } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePresignedUrl } from '../hooks/usePresignedUrl';
@@ -20,7 +21,6 @@ export default function TourDetail() {
     description: '',
     status: 'draft',
     imageUrl: '',
-    audioUrl: '',
     mapImageUrl: '',
     musicUrls: [],
     durationMinutes: undefined,
@@ -28,6 +28,7 @@ export default function TourDetail() {
   });
   const [originalData, setOriginalData] = useState<Partial<Tour> | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [hoveredSiteId, setHoveredSiteId] = useState<string | null>(null);
 
   const { data: tourData, isLoading } = useQuery({
     queryKey: ['tour', id],
@@ -57,6 +58,23 @@ export default function TourDetail() {
   // Presign S3 URLs for display
   const presignedImageUrl = usePresignedUrl(formData.imageUrl);
   const presignedMapImageUrl = usePresignedUrl(formData.mapImageUrl);
+
+  // Create custom map icons
+  const createIcon = (number: number, isHovered: boolean) => {
+    const color = isHovered ? '#8B6F47' : '#3B82F6'; // Brown when hovered, blue otherwise
+    const svg = `
+      <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="16" cy="16" r="14" fill="${color}" stroke="white" stroke-width="2"/>
+        <text x="16" y="20" text-anchor="middle" font-size="14" font-weight="bold" fill="white">${number}</text>
+      </svg>
+    `;
+    return L.divIcon({
+      html: svg,
+      className: 'custom-map-marker',
+      iconSize: [32, 32],
+      iconAnchor: [16, 16],
+    });
+  };
 
   const saveMutation = useMutation({
     mutationFn: (data: Partial<Tour>) =>
@@ -120,7 +138,6 @@ export default function TourDetail() {
         description: '',
         status: 'draft',
         imageUrl: '',
-        audioUrl: '',
         mapImageUrl: '',
         musicUrls: [],
         durationMinutes: undefined,
@@ -182,14 +199,9 @@ export default function TourDetail() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              {isNew ? 'Create New Tour' : 'Edit Tour'}
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {isNew ? 'Fill in the details to create a new tour' : 'Update tour information'}
-            </p>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isNew ? 'Create New Tour' : formData.name || 'Untitled Tour'}
+          </h1>
           {hasUnsavedChanges && (
             <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
               Unsaved changes
@@ -209,50 +221,29 @@ export default function TourDetail() {
         {/* Main Content - Left Column */}
         <div className="lg:col-span-2">
           <form id="tour-form" onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/50 overflow-hidden">
-            <div className="p-8 pb-32 space-y-8">
-              {/* Basic Information Section */}
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <span className="text-2xl">📝</span>
-                  Basic Information
-                </h2>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tour Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={formData.name}
-                    onChange={(e) => updateField('name', e.target.value)}
-                    placeholder="Enter tour name..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    rows={5}
-                    value={formData.description || ''}
-                    onChange={(e) => updateField('description', e.target.value)}
-                    placeholder="Describe the tour..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white resize-none"
-                  />
-                </div>
+            <div className="p-8 pb-32 space-y-6">
+              {/* Tour Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tour Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => updateField('name', e.target.value)}
+                  placeholder="Enter tour name..."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
+                />
               </div>
 
-              {/* Media Section */}
-              <div className="space-y-4 pt-6 border-t border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <span className="text-2xl">🎬</span>
-                  Media
-                </h2>
-
+              {/* Image and Map Side by Side */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Image */}
                 <div>
+                  {presignedImageUrl && (
+                    <img src={presignedImageUrl} alt="Tour" className="w-full h-48 rounded-lg object-cover mb-2" />
+                  )}
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Image URL
                   </label>
@@ -263,30 +254,13 @@ export default function TourDetail() {
                     placeholder="https://s3.amazonaws.com/..."
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
                   />
-                  {presignedImageUrl && (
-                    <img src={presignedImageUrl} alt="Tour" className="mt-2 h-32 rounded-lg object-cover" />
-                  )}
                 </div>
 
+                {/* Map */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Audio URL
-                  </label>
-                  <input
-                    type="url"
-                    value={formData.audioUrl || ''}
-                    onChange={(e) => updateField('audioUrl', e.target.value)}
-                    placeholder="https://s3.amazonaws.com/..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
-                  />
-                  {formData.audioUrl && (
-                    <audio controls className="mt-2 w-full">
-                      <source src={formData.audioUrl} />
-                    </audio>
+                  {presignedMapImageUrl && (
+                    <img src={presignedMapImageUrl} alt="Map" className="w-full h-48 rounded-lg object-cover mb-2" />
                   )}
-                </div>
-
-                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Map Image URL
                   </label>
@@ -297,10 +271,22 @@ export default function TourDetail() {
                     placeholder="https://s3.amazonaws.com/..."
                     className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
                   />
-                  {presignedMapImageUrl && (
-                    <img src={presignedMapImageUrl} alt="Map" className="mt-2 h-32 rounded-lg object-cover" />
-                  )}
                 </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  rows={5}
+                  value={formData.description || ''}
+                  onChange={(e) => updateField('description', e.target.value)}
+                  placeholder="Describe the tour..."
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white resize-none"
+                />
+              </div>
 
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -336,52 +322,22 @@ export default function TourDetail() {
                     ))}
                   </div>
                 </div>
-              </div>
-
-              {/* Metadata Section */}
-              <div className="space-y-4 pt-6 border-t border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <span className="text-2xl">📊</span>
-                  Metadata
-                </h2>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Duration (minutes)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.durationMinutes || ''}
-                      onChange={(e) => updateField('durationMinutes', parseInt(e.target.value) || null)}
-                      placeholder="60"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Distance (meters)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.distanceMeters || ''}
-                      onChange={(e) => updateField('distanceMeters', parseFloat(e.target.value) || null)}
-                      placeholder="1500"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
-                    />
-                  </div>
-                </div>
-              </div>
 
               {/* Location Section */}
               <div className="space-y-4 pt-6 border-t border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  <span className="text-2xl">📍</span>
-                  {formData.neighborhood && formData.city
-                    ? `${formData.neighborhood}, ${formData.city}`
-                    : formData.city || formData.neighborhood || 'Location'}
-                </h2>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    <span className="text-2xl">📍</span>
+                    {formData.neighborhood && formData.city
+                      ? `${formData.neighborhood}, ${formData.city}`
+                      : formData.city || formData.neighborhood || 'Location'}
+                  </h2>
+                  {tourData?.sites && tourData.sites.length > 0 && (
+                    <p className="text-sm text-gray-500 mt-1 italic">
+                      Order optimized for user's location
+                    </p>
+                  )}
+                </div>
 
                 {/* Map of tour sites */}
                 {tourData?.sites && tourData.sites.length > 0 && (
@@ -399,6 +355,7 @@ export default function TourDetail() {
                           <Marker
                             key={site.id}
                             position={[site.latitude, site.longitude]}
+                            icon={createIcon(index + 1, hoveredSiteId === site.id)}
                           >
                             <Popup>
                               <div>
@@ -423,9 +380,15 @@ export default function TourDetail() {
                         <Link
                           key={site.id}
                           to={`/sites/${site.id}`}
-                          className="flex items-start gap-3 p-3 rounded-lg hover:bg-[#F6EDD9]/50 transition-colors group"
+                          className={`flex items-start gap-3 p-3 rounded-lg transition-colors group ${
+                            hoveredSiteId === site.id ? 'bg-[#F6EDD9]' : 'hover:bg-[#F6EDD9]/50'
+                          }`}
+                          onMouseEnter={() => setHoveredSiteId(site.id)}
+                          onMouseLeave={() => setHoveredSiteId(null)}
                         >
-                          <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#F6EDD9] text-[#8B6F47] flex items-center justify-center font-semibold text-sm">
+                          <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm transition-colors ${
+                            hoveredSiteId === site.id ? 'bg-[#8B6F47] text-white' : 'bg-[#F6EDD9] text-[#8B6F47]'
+                          }`}>
                             {index + 1}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -539,6 +502,30 @@ export default function TourDetail() {
                     {formData.status === 'draft' && 'Work in progress'}
                     {formData.status === 'live' && 'Active and ready'}
                     {formData.status === 'archived' && 'No longer active'}
+                  </div>
+                </div>
+              )}
+
+              {/* Duration */}
+              {tourData?.durationMinutes && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                    Duration
+                  </label>
+                  <div className="text-sm text-gray-900">
+                    {tourData.durationMinutes} minutes
+                  </div>
+                </div>
+              )}
+
+              {/* Distance */}
+              {tourData?.distanceMeters && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
+                    Distance
+                  </label>
+                  <div className="text-sm text-gray-900">
+                    {(tourData.distanceMeters / 1000).toFixed(2)} km
                   </div>
                 </div>
               )}
