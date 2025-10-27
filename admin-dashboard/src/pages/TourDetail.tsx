@@ -1,4 +1,4 @@
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, FormEvent, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
@@ -7,6 +7,7 @@ import L from 'leaflet';
 import { toursApi, adminToursApi } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePresignedUrl } from '../hooks/usePresignedUrl';
+import FileUpload from '../components/FileUpload';
 import type { Tour } from '../types';
 
 export default function TourDetail() {
@@ -29,6 +30,7 @@ export default function TourDetail() {
   const [originalData, setOriginalData] = useState<Partial<Tour> | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [hoveredSiteId, setHoveredSiteId] = useState<string | null>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: tourData, isLoading } = useQuery({
     queryKey: ['tour', id],
@@ -54,6 +56,15 @@ export default function TourDetail() {
       setHasUnsavedChanges(changed);
     }
   }, [formData, originalData, isNew]);
+
+  // Auto-resize description textarea
+  useEffect(() => {
+    const textarea = descriptionRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [formData.description]);
 
   // Presign S3 URLs for display
   const presignedImageUrl = usePresignedUrl(formData.imageUrl);
@@ -247,13 +258,22 @@ export default function TourDetail() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Image URL
                   </label>
-                  <input
-                    type="url"
-                    value={formData.imageUrl || ''}
-                    onChange={(e) => updateField('imageUrl', e.target.value)}
-                    placeholder="https://s3.amazonaws.com/..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={formData.imageUrl || ''}
+                      onChange={(e) => updateField('imageUrl', e.target.value)}
+                      placeholder="https://s3.amazonaws.com/..."
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
+                    />
+                    <FileUpload
+                      type="image"
+                      folder="tours/images"
+                      onUploadComplete={(url) => updateField('imageUrl', url)}
+                      label="Upload Image"
+                      iconOnly
+                    />
+                  </div>
                 </div>
 
                 {/* Map */}
@@ -264,13 +284,22 @@ export default function TourDetail() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Map Image URL
                   </label>
-                  <input
-                    type="url"
-                    value={formData.mapImageUrl || ''}
-                    onChange={(e) => updateField('mapImageUrl', e.target.value)}
-                    placeholder="https://s3.amazonaws.com/..."
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={formData.mapImageUrl || ''}
+                      onChange={(e) => updateField('mapImageUrl', e.target.value)}
+                      placeholder="https://s3.amazonaws.com/..."
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
+                    />
+                    <FileUpload
+                      type="image"
+                      folder="tours/maps"
+                      onUploadComplete={(url) => updateField('mapImageUrl', url)}
+                      label="Upload Map Image"
+                      iconOnly
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -280,11 +309,12 @@ export default function TourDetail() {
                   Description
                 </label>
                 <textarea
-                  rows={5}
+                  ref={descriptionRef}
                   value={formData.description || ''}
                   onChange={(e) => updateField('description', e.target.value)}
                   placeholder="Describe the tour..."
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white resize-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white resize-none overflow-hidden"
+                  style={{ minHeight: '120px' }}
                 />
               </div>
 
@@ -296,9 +326,9 @@ export default function TourDetail() {
                     <button
                       type="button"
                       onClick={addMusicUrl}
-                      className="text-sm text-blue-600 hover:text-blue-700"
+                      className="text-sm text-blue-600 hover:text-blue-700 px-3 py-2"
                     >
-                      + Add Music
+                      + Add URL
                     </button>
                   </div>
                   <div className="space-y-2">
@@ -311,10 +341,17 @@ export default function TourDetail() {
                           placeholder="https://s3.amazonaws.com/..."
                           className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
                         />
+                        <FileUpload
+                          type="audio"
+                          folder="tours/music"
+                          onUploadComplete={(newUrl) => updateMusicUrl(index, newUrl)}
+                          label="Upload Audio"
+                          iconOnly
+                        />
                         <button
                           type="button"
                           onClick={() => removeMusicUrl(index)}
-                          className="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          className="w-10 h-10 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                         >
                           ✕
                         </button>

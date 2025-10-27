@@ -5,6 +5,7 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from werkzeug.utils import secure_filename
 from app.services.s3_service import upload_file_to_s3
+from app.services.tts_service import generate_audio
 from app.utils.admin_required import admin_required
 import uuid
 import os
@@ -196,3 +197,57 @@ def upload_audio():
         'url': file_url,
         'filename': original_filename
     }), 201
+
+
+@admin_upload_bp.route('/generate-audio', methods=['POST'])
+@jwt_required()
+@admin_required()
+def generate_tts_audio():
+    """
+    Generate audio from text using TTS and upload to S3 (admin only).
+
+    Request:
+        Content-Type: application/json
+        Body:
+            {
+                "text": "Text to convert to speech",
+                "voice_id": "optional-voice-id"
+            }
+
+    Returns:
+        {
+            "url": "https://...",
+            "from_cache": true/false
+        }
+    """
+    try:
+        data = request.get_json()
+
+        if not data or 'text' not in data:
+            return jsonify({'error': 'Text is required'}), 400
+
+        text = data.get('text', '').strip()
+        voice_id = data.get('voice_id')
+
+        if not text:
+            return jsonify({'error': 'Text cannot be empty'}), 400
+
+        current_app.logger.info(f'Generating audio for text (length: {len(text)})')
+
+        # Generate audio using TTS service
+        result = generate_audio(text, voice_id=voice_id)
+
+        if result['status'] == 'error':
+            current_app.logger.error(f'TTS generation failed: {result.get("error")}')
+            return jsonify({'error': result.get('error', 'Failed to generate audio')}), 500
+
+        current_app.logger.info(f'Audio generated successfully (from_cache: {result.get("from_cache", False)})')
+
+        return jsonify({
+            'url': result['audio_url'],
+            'from_cache': result.get('from_cache', False)
+        }), 201
+
+    except Exception as e:
+        current_app.logger.error(f'Error in generate_tts_audio: {e}', exc_info=True)
+        return jsonify({'error': 'An unexpected error occurred'}), 500
