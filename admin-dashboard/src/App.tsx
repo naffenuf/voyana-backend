@@ -11,6 +11,7 @@ import SiteDetail from './pages/SiteDetail';
 import Users from './pages/Users';
 import UserDetail from './pages/UserDetail';
 import Profile from './pages/Profile';
+import AITraces from './pages/AITraces';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -64,6 +65,7 @@ function AppRoutes() {
         <Route path="sites/:id" element={<SiteDetail />} />
         <Route path="users" element={<Users />} />
         <Route path="users/:id" element={<UserDetail />} />
+        <Route path="ai-traces" element={<AITraces />} />
         <Route path="profile" element={<Profile />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

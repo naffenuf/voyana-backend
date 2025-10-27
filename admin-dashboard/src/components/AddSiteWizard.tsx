@@ -1,9 +1,9 @@
 import { useState, useEffect, FormEvent } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import { LatLng } from 'leaflet';
-import { X, MapPin, Search, ImageIcon, FileText, Loader2 } from 'lucide-react';
+import { X, MapPin, Search, ImageIcon, FileText, Loader2, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { placesApi, sitesApi, toursApi } from '../lib/api';
+import { placesApi, sitesApi, toursApi, adminAiApi } from '../lib/api';
 import type { PlaceSearchResult, PlaceDetails, PlacePhoto, Site } from '../types';
 
 interface AddSiteWizardProps {
@@ -50,6 +50,7 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
   const [searching, setSearching] = useState(false);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
 
   // Reset state when wizard opens
   useEffect(() => {
@@ -99,6 +100,25 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
         longitude: details.location.longitude,
       });
       setDescription(details.editorialSummary || '');
+
+      // Generate AI description in background
+      setGeneratingDescription(true);
+      adminAiApi.generateDescription({
+        siteName: details.name,
+        latitude: details.location.latitude,
+        longitude: details.location.longitude,
+      }).then((result) => {
+        setDescription(result.description);
+        setGeneratingDescription(false);
+        toast.success('AI description generated!');
+      }).catch((error) => {
+        console.error('Failed to generate description:', error);
+        setGeneratingDescription(false);
+        // Keep the editorial summary if AI generation fails
+        if (!description) {
+          setDescription(details.editorialSummary || '');
+        }
+      });
 
       if (details.photos.length > 0) {
         setStep('photos');
@@ -386,17 +406,26 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description
+                <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center justify-between">
+                  <span>Description</span>
+                  {generatingDescription && (
+                    <span className="text-xs text-blue-600 flex items-center space-x-1">
+                      <Sparkles className="w-3 h-3 animate-pulse" />
+                      <span>Generating with AI...</span>
+                    </span>
+                  )}
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Enter site description..."
+                  placeholder={generatingDescription ? "AI is generating a description..." : "Enter site description..."}
                   className="w-full px-3 py-2 border rounded-md h-32 resize-none"
+                  disabled={generatingDescription}
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  You can edit this later if needed
+                  {generatingDescription
+                    ? 'Please wait while AI generates a description. You can edit it afterwards.'
+                    : 'AI-generated description. You can edit this now or later if needed.'}
                 </p>
               </div>
 

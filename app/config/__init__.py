@@ -33,6 +33,9 @@ class BaseConfig:
     # OpenAI
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 
+    # Grok (X.AI)
+    GROK_API_KEY = os.getenv('GROK_API_KEY')
+
     # ElevenLabs
     ELEVEN_LABS_API_KEY = os.getenv('ELEVEN_LABS_API_KEY')
     ELEVEN_LABS_VOICE_ID = os.getenv('ELEVEN_LABS_VOICE_ID', 'XrExE9yKIg1WjnnlVkGX')

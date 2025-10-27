@@ -5,7 +5,7 @@ import toast from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import type { LeafletMouseEvent } from 'leaflet';
 import { useAuth } from '../lib/auth';
-import { sitesApi, uploadApi } from '../lib/api';
+import { sitesApi, uploadApi, adminAiApi } from '../lib/api';
 import { usePresignedUrl, usePresignedUrls } from '../hooks/usePresignedUrl';
 import FileUpload from '../components/FileUpload';
 import type { Site } from '../types';
@@ -42,6 +42,7 @@ export default function SiteDetail() {
   const [originalData, setOriginalData] = useState<Partial<Site> | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [generatingAudio, setGeneratingAudio] = useState(false);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
 
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
@@ -182,6 +183,30 @@ export default function SiteDetail() {
     }
   };
 
+  const handleGenerateDescription = async () => {
+    if (!formData.title || !formData.latitude || !formData.longitude) {
+      toast.error('Please add title and coordinates first');
+      return;
+    }
+
+    setGeneratingDescription(true);
+
+    try {
+      const result = await adminAiApi.generateDescription({
+        siteName: formData.title,
+        latitude: formData.latitude,
+        longitude: formData.longitude,
+      });
+      updateField('description', result.description);
+      toast.success('AI description generated!');
+    } catch (error: any) {
+      console.error('Generate description error:', error);
+      toast.error(error.response?.data?.error || 'Failed to generate description');
+    } finally {
+      setGeneratingDescription(false);
+    }
+  };
+
   const updateField = (field: keyof Site, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -271,6 +296,26 @@ export default function SiteDetail() {
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white resize-none overflow-hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
                 style={{ minHeight: '120px' }}
               />
+              <button
+                type="button"
+                onClick={handleGenerateDescription}
+                disabled={!formData.title || !formData.latitude || !formData.longitude || generatingDescription}
+                className="mt-2 w-full px-4 py-2.5 bg-[#8B6F47] hover:bg-[#6F5838] text-white text-sm font-medium rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {generatingDescription ? (
+                  <>
+                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Generating Description...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    Generate Description with AI
+                  </>
+                )}
+              </button>
             </div>
 
             {/* Audio */}

@@ -581,7 +581,7 @@ export default function TourDetail() {
 
         {/* Information Sidebar - Right Column */}
         <div className="lg:col-span-1">
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/50 p-6 space-y-6 sticky top-6">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/50 p-6 space-y-6 sticky top-20">
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
               <span className="text-2xl">ℹ️</span>
               Information

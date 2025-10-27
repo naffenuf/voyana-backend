@@ -210,3 +210,49 @@ export interface PhotoDownloadResponse {
   filename: string;
   photoReference: string;
 }
+
+// AI Trace types
+export interface AITrace {
+  id: string;
+  promptName: string;
+  provider: string;
+  model: string;
+  systemPrompt: string;
+  userPrompt: string;
+  response: string;
+  rawRequest?: Record<string, any>;
+  rawResponse?: Record<string, any>;
+  metadata: {
+    latency?: number;
+    tokens_prompt?: number;
+    tokens_completion?: number;
+    tokens_total?: number;
+    finish_reason?: string;
+  };
+  status: 'pending' | 'success' | 'error';
+  errorMessage: string | null;
+  userId: number | null;
+  createdAt: string;
+  completedAt: string | null;
+}
+
+export interface AITraceFilters {
+  prompt_name?: string;
+  provider?: string;
+  status?: string;
+  from_date?: string;
+  to_date?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface GenerateDescriptionRequest {
+  siteName: string;
+  latitude: number;
+  longitude: number;
+}
+
+export interface GenerateDescriptionResponse {
+  description: string;
+  traceId: string;
+}

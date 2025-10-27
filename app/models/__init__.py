@@ -7,6 +7,7 @@ from app.models.site import Site
 from app.models.neighborhood import NeighborhoodDescription
 from app.models.feedback import Feedback
 from app.models.audio_cache import AudioCache
+from app.models.ai_trace import AITrace
 
 __all__ = [
     'User',
@@ -18,4 +19,5 @@ __all__ = [
     'NeighborhoodDescription',
     'Feedback',
     'AudioCache',
+    'AITrace',
 ]

@@ -6,6 +6,7 @@ from .users import admin_users_bp
 from .feedback import admin_feedback_bp
 from .upload import admin_upload_bp
 from .tours import admin_tours_bp
+from .ai import admin_ai_bp
 
 # Create main admin blueprint
 admin_bp = Blueprint('admin', __name__)
@@ -15,3 +16,4 @@ admin_bp.register_blueprint(admin_users_bp, url_prefix='/users')
 admin_bp.register_blueprint(admin_feedback_bp, url_prefix='/feedback')
 admin_bp.register_blueprint(admin_upload_bp, url_prefix='/upload')
 admin_bp.register_blueprint(admin_tours_bp, url_prefix='/tours')
+admin_bp.register_blueprint(admin_ai_bp, url_prefix='/ai')

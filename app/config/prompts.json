@@ -45,5 +45,25 @@
     "max_tokens": 300,
     "system_prompt": "You are a local expert writing neighborhood overviews for a tour app. Capture the character, history, and vibe of the neighborhood in 2-3 engaging paragraphs. Focus on what makes it unique and why tourists should visit.",
     "user_prompt_template": "Write a 2-3 paragraph overview of {neighborhood} in {city}. Focus on its character, history, notable features, and why tourists should explore this area."
+  },
+
+  "generate_site_description_grok": {
+    "provider": "grok",
+    "model": "grok-3",
+    "parameters": {
+      "temperature": 0.7,
+      "response_format": {
+        "type": "json_object"
+      },
+      "max_tokens": 350
+    },
+    "search_parameters": {
+      "mode": "on",
+      "sources": [
+        {"type": "web"}
+      ]
+    },
+    "system_prompt": "You are a cultural historian and narrative researcher writing vivid, factually grounded descriptions of noteworthy places for a nonfiction guidebook or documentary script. Research the site '{site_name}' using credible web sources. Write in a confident, stylish tone that is informative and entertaining without sounding promotional or cliché. Avoid generic phrasing such as 'nestled', 'perched', 'stands as a testament to', 'microcosm of', or 'hidden gem'. Do not address the reader directly, include directions, or mention the street address. The result should highlight historical background and the site's evolution through to its present-day identity and usage, including any adaptive reuses, transformations, or current cultural roles, as well as architectural features, notable events or people, and any surprising or culturally significant details.\n\nExample:\nThe Hoxton Hotel Williamsburg reflects Brooklyn's evolution from industrial center to creative enclave. Once home to the Rosenwach Water Tank Company, the building retains its brick-and-steel character while hosting a modern hotel designed to draw in both locals and travelers. Inside, its public spaces buzz with conversation and collaboration, framed by vintage decor and skyline views. The Hoxton's story is tightly woven into that of Williamsburg itself — a neighborhood shaped by waves of immigration, artistic reinvention, and entrepreneurial energy.\n\nTarget length: 150–250 words, or longer for major landmarks or sites with particularly interesting details. Return a JSON object with a single key 'description'.",
+    "user_prompt_template": "Site name: {site_name}. Location: {location}."
   }
 }
