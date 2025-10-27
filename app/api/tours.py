@@ -341,3 +341,149 @@ def delete_tour(tour_id):
     current_app.logger.info(f'Deleted tour: {tour_id} ({tour_name})')
 
     return jsonify({'message': 'Tour deleted successfully'}), 200
+
+
+@tours_bp.route('/nearby', methods=['GET'])
+def nearby_tours():
+    """
+    Find tours by proximity, grouped by neighborhoods.
+
+    Returns tours from the closest N neighborhoods (based on distance to each tour).
+    Algorithm:
+    1. Calculate distance from user location to all tours
+    2. Sort tours by distance (ascending)
+    3. Identify neighborhoods in order of first appearance
+    4. Return all tours from the first N neighborhoods
+
+    Query params:
+        - lat: User latitude (required)
+        - lon: User longitude (required)
+        - neighborhood_count: Number of neighborhoods to return (default: 3)
+        - neighborhood_offset: Pagination offset for neighborhoods (default: 0)
+        - city: Filter tours by city (optional)
+        - max_distance: Maximum distance in meters (optional, no limit by default)
+
+    Returns:
+        {
+            "tours": [...],  # All tours from selected neighborhoods, sorted by distance
+            "neighborhoods": [...],  # Ordered list of neighborhoods returned
+            "totalNeighborhoods": int,  # Total unique neighborhoods in results
+            "neighborhoodOffset": int,  # Current pagination offset
+            "hasMore": bool  # Whether more neighborhoods are available
+        }
+    """
+    # Get query params
+    lat = request.args.get('lat')
+    lon = request.args.get('lon')
+    neighborhood_count = request.args.get('neighborhood_count', 3, type=int)
+    neighborhood_offset = request.args.get('neighborhood_offset', 0, type=int)
+    city = request.args.get('city', '').strip()
+    max_distance = request.args.get('max_distance', type=int)
+
+    # Validate required params
+    if not lat or not lon:
+        return jsonify({'error': 'lat and lon parameters are required'}), 400
+
+    try:
+        lat = float(lat)
+        lon = float(lon)
+    except (ValueError, TypeError):
+        return jsonify({'error': 'Invalid lat/lon values'}), 400
+
+    # Validate lat/lon ranges
+    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+        return jsonify({'error': 'Latitude must be -90 to 90, longitude must be -180 to 180'}), 400
+
+    # Check if user is authenticated (optional)
+    user_id = None
+    try:
+        verify_jwt_in_request(optional=True)
+        jwt_identity = get_jwt_identity()
+        if jwt_identity:
+            user_id = int(jwt_identity)
+    except:
+        pass
+
+    # Build base query
+    query = Tour.query
+
+    # Access control: public tours OR user's own tours
+    if user_id:
+        query = query.filter(
+            or_(
+                Tour.is_public == True,
+                Tour.owner_id == user_id
+            )
+        )
+    else:
+        query = query.filter(Tour.is_public == True)
+
+    # Default: only show live tours
+    query = query.filter(Tour.status == 'live')
+
+    # Optional city filter
+    if city:
+        query = query.filter(Tour.city.ilike(city))
+
+    # Get all tours (no pagination - we need to calculate distance to all)
+    all_tours = query.all()
+
+    # Calculate distance for each tour and filter by max_distance if specified
+    tours_with_distance = []
+    for tour in all_tours:
+        # Skip tours without coordinates
+        if not tour.latitude or not tour.longitude:
+            continue
+
+        distance = calculate_distance(lat, lon, tour.latitude, tour.longitude)
+
+        # Apply max_distance filter if specified
+        if max_distance is not None and distance > max_distance:
+            continue
+
+        tours_with_distance.append({
+            'tour': tour,
+            'distance': round(distance, 2),
+            'neighborhood': tour.neighborhood or 'Unspecified'
+        })
+
+    # Sort by distance (ascending)
+    tours_with_distance.sort(key=lambda x: x['distance'])
+
+    # Identify unique neighborhoods in order of first appearance
+    neighborhoods_ordered = []
+    seen_neighborhoods = set()
+
+    for item in tours_with_distance:
+        neighborhood = item['neighborhood']
+        if neighborhood not in seen_neighborhoods:
+            neighborhoods_ordered.append(neighborhood)
+            seen_neighborhoods.add(neighborhood)
+
+    # Apply pagination to neighborhoods
+    total_neighborhoods = len(neighborhoods_ordered)
+    start_idx = neighborhood_offset
+    end_idx = start_idx + neighborhood_count
+    selected_neighborhoods = neighborhoods_ordered[start_idx:end_idx]
+
+    # Filter tours to only include those from selected neighborhoods
+    filtered_tours = [
+        item for item in tours_with_distance
+        if item['neighborhood'] in selected_neighborhoods
+    ]
+
+    # Convert to response format
+    tours_data = []
+    for item in filtered_tours:
+        tour_dict = item['tour'].to_dict(include_sites=True)
+        tour_dict['distance'] = item['distance']
+        tour_dict['neighborhood'] = item['neighborhood']
+        tours_data.append(tour_dict)
+
+    return jsonify({
+        'tours': tours_data,
+        'neighborhoods': selected_neighborhoods,
+        'totalNeighborhoods': total_neighborhoods,
+        'neighborhoodOffset': neighborhood_offset,
+        'hasMore': end_idx < total_neighborhoods
+    }), 200
