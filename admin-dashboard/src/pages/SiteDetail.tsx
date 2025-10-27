@@ -1,11 +1,12 @@
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, FormEvent, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import { useAuth } from '../lib/auth';
-import { sitesApi } from '../lib/api';
+import { sitesApi, uploadApi } from '../lib/api';
 import { usePresignedUrl, usePresignedUrls } from '../hooks/usePresignedUrl';
+import FileUpload from '../components/FileUpload';
 import type { Site } from '../types';
 
 export default function SiteDetail() {
@@ -30,9 +31,11 @@ export default function SiteDetail() {
   });
   const [originalData, setOriginalData] = useState<Partial<Site> | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [generatingAudio, setGeneratingAudio] = useState(false);
 
   const [keywordInput, setKeywordInput] = useState('');
   const [typeInput, setTypeInput] = useState('');
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
   const { data: siteData, isLoading } = useQuery({
     queryKey: ['site', id],
@@ -58,6 +61,15 @@ export default function SiteDetail() {
       setHasUnsavedChanges(changed);
     }
   }, [formData, originalData, isNew]);
+
+  // Auto-resize description textarea
+  useEffect(() => {
+    const textarea = descriptionRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [formData.description]);
 
   // Presign S3 URLs for display
   const presignedImageUrl = usePresignedUrl(formData.imageUrl);
@@ -142,6 +154,26 @@ export default function SiteDetail() {
     }
   };
 
+  const handleGenerateAudio = async () => {
+    if (!formData.description || !formData.description.trim()) {
+      toast.error('Please add a description first');
+      return;
+    }
+
+    setGeneratingAudio(true);
+
+    try {
+      const result = await uploadApi.generateAudio(formData.description);
+      updateField('audioUrl', result.url);
+      toast.success(result.from_cache ? 'Audio retrieved from cache!' : 'Audio generated successfully!');
+    } catch (error: any) {
+      console.error('Generate audio error:', error);
+      toast.error(error.response?.data?.error || 'Failed to generate audio');
+    } finally {
+      setGeneratingAudio(false);
+    }
+  };
+
   const updateField = (field: keyof Site, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -191,16 +223,9 @@ export default function SiteDetail() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              {isNew ? 'Create New Site' : 'Edit Site'}
-            </h1>
-            <p className="text-gray-600 mt-1">
-              {isNew
-                ? 'Fill in the details to create a new site'
-                : 'Update site information'}
-            </p>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isNew ? 'Create New Site' : formData.title || 'Untitled Site'}
+          </h1>
           {hasUnsavedChanges && (
             <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">
               Unsaved changes
@@ -221,14 +246,8 @@ export default function SiteDetail() {
         <div className="lg:col-span-2">
           {/* Form */}
           <form id="site-form" onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-gray-200/50 overflow-hidden">
-            <div className="p-8 pb-32 space-y-8">
-          {/* Basic Information Section */}
-          <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <span className="text-2xl">📝</span>
-              Basic Information
-            </h2>
-
+            <div className="p-8 pb-32 space-y-6">
+            {/* Site Title */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Site Title <span className="text-red-500">*</span>
@@ -236,7 +255,6 @@ export default function SiteDetail() {
               <input
                 type="text"
                 required
-                
                 value={formData.title}
                 onChange={(e) => updateField('title', e.target.value)}
                 placeholder="Enter site title..."
@@ -244,78 +262,109 @@ export default function SiteDetail() {
               />
             </div>
 
+            {/* Description */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Description
               </label>
               <textarea
-                rows={5}
-                
+                ref={descriptionRef}
                 value={formData.description || ''}
                 onChange={(e) => updateField('description', e.target.value)}
                 placeholder="Describe the site..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white resize-none disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white resize-none overflow-hidden disabled:bg-gray-100 disabled:cursor-not-allowed"
+                style={{ minHeight: '120px' }}
               />
             </div>
-          </div>
 
-          {/* Media Section */}
-          <div className="space-y-4 pt-6 border-t border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <span className="text-2xl">🎬</span>
-              Media
-            </h2>
+            {/* Image */}
 
             <div>
+              {presignedImageUrl && (
+                <img src={presignedImageUrl} alt="Site" className="mb-2 h-48 w-full rounded-lg object-cover" />
+              )}
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Image URL
               </label>
-              <input
-                type="url"
-                
-                value={formData.imageUrl || ''}
-                onChange={(e) => updateField('imageUrl', e.target.value)}
-                placeholder="https://s3.amazonaws.com/..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-              />
-              {presignedImageUrl && (
-                <img src={presignedImageUrl} alt="Site" className="mt-2 h-32 rounded-lg object-cover" />
-              )}
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={formData.imageUrl || ''}
+                  onChange={(e) => updateField('imageUrl', e.target.value)}
+                  placeholder="https://s3.amazonaws.com/..."
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                />
+                <FileUpload
+                  type="image"
+                  folder="sites/images"
+                  onUploadComplete={(url) => updateField('imageUrl', url)}
+                  label="Upload Image"
+                  iconOnly
+                />
+              </div>
             </div>
 
+            {/* Audio */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Audio URL
-              </label>
-              <input
-                type="url"
-                
-                value={formData.audioUrl || ''}
-                onChange={(e) => updateField('audioUrl', e.target.value)}
-                placeholder="https://s3.amazonaws.com/..."
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
-              />
               {presignedAudioUrl && (
-                <audio controls className="mt-2 w-full">
+                <audio controls className="mb-2 w-full">
                   <source src={presignedAudioUrl} />
                 </audio>
               )}
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Audio URL
+              </label>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="url"
+                  value={formData.audioUrl || ''}
+                  onChange={(e) => updateField('audioUrl', e.target.value)}
+                  placeholder="https://s3.amazonaws.com/..."
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
+                />
+                <FileUpload
+                  type="audio"
+                  folder="sites/audio"
+                  onUploadComplete={(url) => updateField('audioUrl', url)}
+                  label="Upload Audio"
+                  iconOnly
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleGenerateAudio}
+                disabled={!formData.description || generatingAudio}
+                className="w-full px-4 py-2.5 bg-[#8B6F47] hover:bg-[#6F5838] text-white text-sm font-medium rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {generatingAudio ? (
+                  <>
+                    <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Generating Audio...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                    Generate Audio from Description
+                  </>
+                )}
+              </button>
             </div>
 
+            {/* Web URL */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Web URL
               </label>
               <input
                 type="url"
-                
                 value={formData.webUrl || ''}
                 onChange={(e) => updateField('webUrl', e.target.value)}
                 placeholder="https://example.com"
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
             </div>
-          </div>
 
           {/* Coordinates Section */}
           <div className="space-y-4 pt-6 border-t border-gray-200">
