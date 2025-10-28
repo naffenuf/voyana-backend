@@ -135,8 +135,7 @@ def test_tour(app, test_user):
         neighborhood='SoHo',
         latitude=40.7241,
         longitude=-73.9973,
-        status='live',
-        is_public=True
+        status='published'
     )
 
     db.session.add(tour)
@@ -154,8 +153,7 @@ def draft_tour(app, test_user):
         description='A draft tour',
         city='Brooklyn',
         neighborhood='Williamsburg',
-        status='draft',
-        is_public=False
+        status='draft'
     )
 
     db.session.add(tour)

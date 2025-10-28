@@ -108,9 +108,6 @@ def list_tours():
     # Status filter
     if status:
         query = query.filter(Tour.status == status)
-    else:
-        # Default: only show live tours
-        query = query.filter(Tour.status == 'live')
 
     # City filter
     if city:
