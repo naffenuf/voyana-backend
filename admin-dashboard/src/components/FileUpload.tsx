@@ -10,6 +10,7 @@ interface FileUploadProps {
   accept?: string;
   className?: string;
   iconOnly?: boolean;
+  uniqueId?: string;
 }
 
 export default function FileUpload({
@@ -19,7 +20,8 @@ export default function FileUpload({
   label,
   accept,
   className,
-  iconOnly = false
+  iconOnly = false,
+  uniqueId
 }: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -63,10 +65,10 @@ export default function FileUpload({
         onChange={handleFileSelect}
         disabled={uploading}
         className="hidden"
-        id={`file-upload-${type}-${folder || 'default'}`}
+        id={uniqueId || `file-upload-${type}-${folder || 'default'}`}
       />
       <label
-        htmlFor={`file-upload-${type}-${folder || 'default'}`}
+        htmlFor={uniqueId || `file-upload-${type}-${folder || 'default'}`}
         title={label || `Upload ${type === 'image' ? 'Image' : 'Audio'}`}
         className={
           iconOnly

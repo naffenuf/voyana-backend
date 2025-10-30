@@ -6,7 +6,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { toursApi, adminToursApi, sitesApi } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { usePresignedUrl } from '../hooks/usePresignedUrl';
+import { usePresignedUrl, usePresignedUrls } from '../hooks/usePresignedUrl';
 import FileUpload from '../components/FileUpload';
 import AddSiteWizard from '../components/AddSiteWizard';
 import RemoveSiteDialog from '../components/RemoveSiteDialog';
@@ -35,6 +35,8 @@ export default function TourDetail() {
   const [showAddSiteWizard, setShowAddSiteWizard] = useState(false);
   const [siteToRemove, setSiteToRemove] = useState<Site | null>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const [playingIndex, setPlayingIndex] = useState<number | null>(null);
+  const audioRefs = useRef<(HTMLAudioElement | null)[]>([]);
 
   const { data: tourData, isLoading } = useQuery({
     queryKey: ['tour', id],
@@ -73,6 +75,9 @@ export default function TourDetail() {
   // Presign S3 URLs for display
   const presignedImageUrl = usePresignedUrl(formData.imageUrl);
   const presignedMapImageUrl = usePresignedUrl(formData.mapImageUrl);
+
+  // Get presigned URLs for music tracks (using plural hook for arrays)
+  const presignedMusicUrls = usePresignedUrls(formData.musicUrls || []);
 
   // Create custom map icons
   const createIcon = (number: number, isHovered: boolean) => {
@@ -116,7 +121,14 @@ export default function TourDetail() {
       toast.error('Tour name is required');
       return;
     }
-    saveMutation.mutate(formData);
+
+    // Filter out empty music URLs before saving
+    const cleanedData = {
+      ...formData,
+      musicUrls: formData.musicUrls?.filter(url => url && url.trim() !== '') || []
+    };
+
+    saveMutation.mutate(cleanedData);
   };
 
   const handleSaveAndClose = () => {
@@ -124,7 +136,14 @@ export default function TourDetail() {
       toast.error('Tour name is required');
       return;
     }
-    saveMutation.mutate(formData, {
+
+    // Filter out empty music URLs before saving
+    const cleanedData = {
+      ...formData,
+      musicUrls: formData.musicUrls?.filter(url => url && url.trim() !== '') || []
+    };
+
+    saveMutation.mutate(cleanedData, {
       onSuccess: () => {
         navigate('/tours');
       },
@@ -186,6 +205,29 @@ export default function TourDetail() {
     const musicUrls = [...(formData.musicUrls || [])];
     musicUrls.splice(index, 1);
     setFormData((prev) => ({ ...prev, musicUrls }));
+  };
+
+  const togglePlayPause = async (index: number) => {
+    const audio = audioRefs.current[index];
+    if (!audio) return;
+
+    if (playingIndex === index) {
+      audio.pause();
+      setPlayingIndex(null);
+    } else {
+      // Pause any currently playing audio
+      audioRefs.current.forEach((a, i) => {
+        if (a && i !== index) a.pause();
+      });
+
+      try {
+        await audio.play();
+        setPlayingIndex(index);
+      } catch (error) {
+        console.error('Error playing audio:', error);
+        toast.error('Failed to play audio. The file might not be accessible.');
+      }
+    }
   };
 
   const handleSiteCreated = (site: Site) => {
@@ -387,29 +429,59 @@ export default function TourDetail() {
                   </div>
                   <div className="space-y-2">
                     {(formData.musicUrls || []).map((url, index) => (
-                      <div key={index} className="flex gap-2">
-                        <input
-                          type="url"
-                          value={url}
-                          onChange={(e) => updateMusicUrl(index, e.target.value)}
-                          placeholder="https://s3.amazonaws.com/..."
-                          className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
-                        />
-                        <FileUpload
-                          type="audio"
-                          folder="tours/music"
-                          onUploadComplete={(newUrl) => updateMusicUrl(index, newUrl)}
-                          label="Upload Audio"
-                          iconOnly
-                        />
-                        <button
-                          type="button"
-                          onClick={() => removeMusicUrl(index)}
-                          className="w-10 h-10 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          ✕
-                        </button>
-                      </div>
+                      <div key={`music-url-${index}`} className="flex gap-2">
+                          {url && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => togglePlayPause(index)}
+                                disabled={!url}
+                                className="w-10 h-10 flex items-center justify-center text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-30"
+                                title={playingIndex === index ? 'Pause' : 'Play'}
+                              >
+                                {playingIndex === index ? (
+                                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/>
+                                  </svg>
+                                ) : (
+                                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z"/>
+                                  </svg>
+                                )}
+                              </button>
+                              <audio
+                                ref={(el) => (audioRefs.current[index] = el)}
+                                src={presignedMusicUrls[index] || url}
+                                crossOrigin="anonymous"
+                                preload="metadata"
+                                onEnded={() => setPlayingIndex(null)}
+                                onError={(e) => console.error('Audio error:', e)}
+                              />
+                            </>
+                          )}
+                          <input
+                            type="url"
+                            value={url}
+                            onChange={(e) => updateMusicUrl(index, e.target.value)}
+                            placeholder="https://s3.amazonaws.com/..."
+                            className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
+                          />
+                          <FileUpload
+                            type="audio"
+                            folder="tours/music"
+                            onUploadComplete={(newUrl) => updateMusicUrl(index, newUrl)}
+                            label="Upload Audio"
+                            iconOnly
+                            uniqueId={`music-upload-${index}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => removeMusicUrl(index)}
+                            className="w-10 h-10 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            ✕
+                          </button>
+                        </div>
                     ))}
                   </div>
                 </div>

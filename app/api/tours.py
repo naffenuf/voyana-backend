@@ -290,7 +290,9 @@ def update_tour(tour_id):
     if 'mapImageUrl' in data:
         tour.map_image_url = data['mapImageUrl']
     if 'musicUrls' in data:
-        tour.music_urls = data['musicUrls']
+        # Filter out empty/whitespace-only strings
+        music_urls = [url.strip() for url in data['musicUrls'] if url and url.strip()]
+        tour.music_urls = music_urls if music_urls else None
     if 'durationMinutes' in data:
         tour.duration_minutes = data['durationMinutes']
     if 'distanceMeters' in data:
