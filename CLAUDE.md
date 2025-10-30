@@ -37,7 +37,7 @@ API routes are organized into focused blueprints:
 - `Tour` - Tours with owner, location, status
 - `Site` - Points of interest with Google Places data
 - `TourSite` - Many-to-many junction table
-- `Feedback` - User feedback on tours/sites
+- `Feedback` - User feedback on tours/sites (ratings, issues, comments, suggestions, photos)
 - `AudioCache` - TTS caching by text hash
 
 **Important Patterns:**
@@ -294,6 +294,74 @@ def get_tour(tour_id):
         db.session.rollback()
         return jsonify({'error': 'Internal server error'}), 500
 ```
+
+## Feedback System
+
+### Feedback Types
+
+The feedback system supports five types of user-submitted feedback:
+
+1. **'rating'** - Numerical rating (1-5) for tours
+   - Used to calculate tour `average_rating` and `rating_count`
+   - Can include optional comment for context
+   - Anonymous or authenticated submissions allowed
+
+2. **'issue'** - Problem reports (bugs, incorrect info, safety concerns)
+   - Helps identify and fix tour/site data issues
+   - Admin review workflow to resolve or dismiss
+
+3. **'comment'** - General user feedback and experiences
+   - Qualitative feedback about tours or sites
+   - Can inform tour improvements
+
+4. **'suggestion'** - Feature requests and improvement ideas
+   - User-driven enhancement suggestions
+   - Helps prioritize new features
+
+5. **'photo'** - User-submitted site photos (NEW)
+   - Crowdsourced photo improvements for sites
+   - Only for sites (not tours)
+   - See Photo Feedback Workflow below
+
+### Photo Feedback Workflow
+
+**Purpose:** Enable users to submit better photos for sites than currently displayed, improving site photo quality over time through crowdsourcing.
+
+**User Flow:**
+1. User visits a site during a tour
+2. User notices the current site photo is poor quality or outdated
+3. User takes a photo with their device camera
+4. iOS/Android app resizes/optimizes photo before submission (client-side)
+5. App submits feedback with:
+   ```json
+   {
+     "siteId": "uuid",
+     "feedbackType": "photo",
+     "photoData": "base64-encoded-image-string",
+     "comment": "Optional description"
+   }
+   ```
+
+**Backend Storage:**
+- `feedback_type` = 'photo'
+- `site_id` must be set (NOT `tour_id`)
+- `photo_data` contains base64-encoded image data
+- `status` starts as 'pending'
+
+**Admin Review Workflow:**
+1. Admin dashboard shows pending photo submissions
+2. Admin views submitted photo alongside current site photo
+3. Admin decides:
+   - **Approve**: Replace site's main photo with submitted photo
+   - **Resolve**: Keep current photo, mark as reviewed
+   - **Dismiss**: Reject (inappropriate, poor quality, etc.)
+4. Admin can add notes explaining decision
+
+**Implementation Notes:**
+- Client must resize photos BEFORE encoding to base64 (prevents huge payloads)
+- Recommended max size: ~800x600 or ~500KB after encoding
+- Photo validation happens at API layer (to be implemented)
+- Photo decoding/saving to S3 happens during admin approval (to be implemented)
 
 ## Testing
 

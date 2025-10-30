@@ -21,9 +21,10 @@ class Feedback(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='SET NULL'))
 
     # Feedback content
-    feedback_type = db.Column(db.String(50), nullable=False)  # 'issue', 'rating', 'comment', 'suggestion'
+    feedback_type = db.Column(db.String(50), nullable=False)  # 'issue', 'rating', 'comment', 'suggestion', 'photo'
     rating = db.Column(db.Integer)  # 1-5
     comment = db.Column(db.Text)
+    photo_data = db.Column(db.Text)  # Base64-encoded image for 'photo' feedback type
 
     # Status tracking
     status = db.Column(db.String(20), default='pending', nullable=False)  # 'pending', 'reviewed', 'resolved', 'dismissed'
@@ -50,6 +51,7 @@ class Feedback(db.Model):
             'feedbackType': self.feedback_type,
             'rating': self.rating,
             'comment': self.comment,
+            'photoData': self.photo_data,
             'status': self.status,
             'adminNotes': self.admin_notes,
             'createdAt': self.created_at.isoformat(),

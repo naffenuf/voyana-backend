@@ -239,9 +239,10 @@ User-submitted feedback for tours or sites.
 | `tour_id` | `uuid` | YES | NULL | Foreign key → `tours.id` |
 | `site_id` | `uuid` | YES | NULL | Foreign key → `sites.id` |
 | `user_id` | `integer` | YES | NULL | Foreign key → `users.id` |
-| `feedback_type` | `varchar(50)` | NO | - | Type: 'issue', 'suggestion', 'rating', 'comment' |
+| `feedback_type` | `varchar(50)` | NO | - | Type: 'issue', 'suggestion', 'rating', 'comment', 'photo' |
 | `rating` | `integer` | YES | NULL | Numerical rating (1-5) |
 | `comment` | `text` | YES | NULL | User comment text |
+| `photo_data` | `text` | YES | NULL | Base64-encoded photo (for 'photo' type only) |
 | `status` | `varchar(20)` | NO | 'pending' | Status: 'pending', 'reviewed', 'resolved' |
 | `admin_notes` | `text` | YES | NULL | Admin notes (internal) |
 | `created_at` | `timestamp` | NO | `now()` | Submission timestamp |
@@ -259,6 +260,17 @@ User-submitted feedback for tours or sites.
 
 **Constraints:**
 - Either `tour_id` OR `site_id` must be set (not both)
+- Photo feedback (`feedback_type='photo'`) should only be used for sites (not tours)
+
+**Photo Feedback Use Case:**
+The 'photo' feedback type enables users to submit better photos for sites than the ones currently displayed. When users visit a site and find the existing photo inadequate, they can:
+1. Take a photo on their device
+2. Client resizes/optimizes the photo before submission
+3. Submit as base64-encoded data in `photo_data` field
+4. Admin reviews in admin dashboard
+5. Admin can replace the site's main photo if the submitted photo is better quality
+
+This crowdsourced approach improves site photo quality over time.
 
 ---
 

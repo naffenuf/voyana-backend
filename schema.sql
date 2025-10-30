@@ -102,6 +102,7 @@ CREATE TABLE public.feedback (
     feedback_type character varying(50) NOT NULL,
     rating integer,
     comment text,
+    photo_data text,
     status character varying(20) NOT NULL,
     admin_notes text,
     created_at timestamp without time zone NOT NULL,
