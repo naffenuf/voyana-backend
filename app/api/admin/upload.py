@@ -1,9 +1,10 @@
 """
 Admin file upload endpoints.
 """
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, g
 from flask_jwt_extended import jwt_required
 from werkzeug.utils import secure_filename
+from app import limiter
 from app.services.s3_service import upload_file_to_s3
 from app.services.tts_service import generate_audio
 from app.utils.admin_required import admin_required
@@ -52,6 +53,7 @@ def get_content_type(filename):
 @admin_upload_bp.route('/image', methods=['POST'])
 @jwt_required()
 @admin_required()
+@limiter.limit("50 per hour", key_func=lambda: f"upload_image_{g.current_user.id}")
 def upload_image():
     """
     Upload an image file to S3 (admin only).
@@ -127,6 +129,7 @@ def upload_image():
 @admin_upload_bp.route('/audio', methods=['POST'])
 @jwt_required()
 @admin_required()
+@limiter.limit("30 per hour", key_func=lambda: f"upload_audio_{g.current_user.id}")
 def upload_audio():
     """
     Upload an audio file to S3 (admin only).
@@ -202,6 +205,7 @@ def upload_audio():
 @admin_upload_bp.route('/generate-audio', methods=['POST'])
 @jwt_required()
 @admin_required()
+@limiter.limit("10 per hour", key_func=lambda: f"generate_audio_{g.current_user.id}")
 def generate_tts_audio():
     """
     Generate audio from text using TTS and upload to S3 (admin only).

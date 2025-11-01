@@ -5,8 +5,9 @@ import logging
 import requests
 import io
 import hashlib
-from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required
+from flask import Blueprint, request, jsonify, current_app, g
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from app import limiter
 from app.services.s3_service import upload_file_to_s3
 
 logger = logging.getLogger(__name__)
@@ -99,6 +100,7 @@ def _download_and_upload_photo_to_s3(photo_name: str, place_id: str, api_key: st
 
 @places_bp.route('/search', methods=['GET'])
 @jwt_required()
+@limiter.limit("100 per hour", key_func=lambda: f"places_search_{get_jwt_identity()}")
 def search_places():
     """
     Search for places using Google Places API (New) v1 Text Search.
@@ -190,6 +192,7 @@ def search_places():
 
 @places_bp.route('/details', methods=['GET'])
 @jwt_required()
+@limiter.limit("50 per hour", key_func=lambda: f"places_details_{get_jwt_identity()}")
 def get_place_details():
     """
     Get detailed information about a specific place using Places API (New) v1.
@@ -315,6 +318,7 @@ def get_place_details():
 
 @places_bp.route('/download-photo', methods=['POST'])
 @jwt_required()
+@limiter.limit("30 per hour", key_func=lambda: f"places_photo_{get_jwt_identity()}")
 def download_and_upload_photo():
     """
     Download a photo from Google Places API (New) v1 and upload it to S3.

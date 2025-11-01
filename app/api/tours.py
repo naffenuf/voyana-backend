@@ -1,10 +1,10 @@
 """
 Tours API endpoints.
 """
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, g
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request, get_jwt
 from sqlalchemy import or_
-from app import db
+from app import db, limiter
 from app.models.tour import Tour
 from app.models.site import Site
 from app.models.user import User
@@ -36,6 +36,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 
 @tours_bp.route('', methods=['GET'])
+@limiter.limit("1000 per hour", key_func=lambda: get_jwt_identity() if verify_jwt_in_request(optional=True) else request.remote_addr)
 def list_tours():
     """
     List tours (public tours + authenticated user's own tours).
@@ -200,6 +201,7 @@ def get_tour(tour_id):
 
 @tours_bp.route('', methods=['POST'])
 @jwt_required()
+@limiter.limit("100 per hour", key_func=lambda: f"create_tour_{get_jwt_identity()}")
 def create_tour():
     """
     Create a new tour.
@@ -539,6 +541,7 @@ def nearby_tours():
 
 @tours_bp.route('/<uuid:tour_id>/generate-audio-for-sites', methods=['POST'])
 @jwt_required()
+@limiter.limit("5 per hour", key_func=lambda: f"generate_audio_batch_{get_jwt_identity()}")
 def generate_audio_for_tour_sites(tour_id):
     """
     Generate audio for all sites in a tour that don't already have audio URLs.

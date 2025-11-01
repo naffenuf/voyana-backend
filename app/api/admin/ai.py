@@ -1,11 +1,11 @@
 """
 Admin AI endpoints for prompt execution and trace management.
 """
-from flask import Blueprint, request, jsonify, current_app
+from flask import Blueprint, request, jsonify, current_app, g
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import or_, and_
 from datetime import datetime
-from app import db
+from app import db, limiter
 from app.models.ai_trace import AITrace
 from app.services.ai_service import ai_service
 from app.utils.admin_required import admin_required
@@ -16,6 +16,7 @@ admin_ai_bp = Blueprint('admin_ai', __name__)
 @admin_ai_bp.route('/generate-description', methods=['POST'])
 @jwt_required()
 @admin_required()
+@limiter.limit("20 per hour", key_func=lambda: f"ai_generate_{get_jwt_identity()}")
 def generate_description():
     """
     Generate a site description using AI (Grok with web search).

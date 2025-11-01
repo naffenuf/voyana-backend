@@ -10,13 +10,14 @@ from flask_jwt_extended import (
     get_jwt
 )
 from datetime import timedelta
-from app import db
+from app import db, limiter
 from app.models.user import User, PasswordResetToken
 
 auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route('/register-device', methods=['POST'])
+@limiter.limit("10 per hour", key_func=lambda: request.remote_addr)
 def register_device():
     """
     Register a device and get JWT token (no user account required).
@@ -66,6 +67,7 @@ def register_device():
 
 
 @auth_bp.route('/register', methods=['POST'])
+@limiter.limit("5 per hour", key_func=lambda: request.remote_addr)
 def register():
     """
     Register a new user.
@@ -120,6 +122,7 @@ def register():
 
 
 @auth_bp.route('/login', methods=['POST'])
+@limiter.limit("20 per hour", key_func=lambda: request.remote_addr)
 def login():
     """
     Log in an existing user.
@@ -224,6 +227,7 @@ def get_current_user():
 
 
 @auth_bp.route('/forgot-password', methods=['POST'])
+@limiter.limit("5 per hour", key_func=lambda: request.remote_addr)
 def forgot_password():
     """
     Request password reset token.

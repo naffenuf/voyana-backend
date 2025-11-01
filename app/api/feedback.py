@@ -4,7 +4,7 @@ Feedback API endpoints.
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 from sqlalchemy import func
-from app import db
+from app import db, limiter
 from app.models.feedback import Feedback
 from app.models.tour import Tour
 
@@ -12,6 +12,7 @@ feedback_bp = Blueprint('feedback', __name__)
 
 
 @feedback_bp.route('', methods=['POST'])
+@limiter.limit("50 per hour", key_func=lambda: get_jwt_identity() if verify_jwt_in_request(optional=True) else request.remote_addr)
 def submit_feedback():
     """
     Submit feedback/rating for a tour.
