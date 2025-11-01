@@ -111,6 +111,30 @@ export default function TourDetail() {
     },
   });
 
+  const generateAudioMutation = useMutation({
+    mutationFn: () => toursApi.generateAudioForSites(id!),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['tour', id] });
+      const successCount = result.sitesProcessed;
+      const skippedCount = result.sitesSkipped;
+      const errorCount = result.results.filter(r => r.status === 'error').length;
+
+      let message = `Audio generation complete! `;
+      if (successCount > 0) message += `${successCount} site(s) processed. `;
+      if (skippedCount > 0) message += `${skippedCount} site(s) skipped. `;
+      if (errorCount > 0) message += `${errorCount} error(s).`;
+
+      if (errorCount > 0) {
+        toast.error(message);
+      } else {
+        toast.success(message);
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to generate audio for sites');
+    },
+  });
+
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -503,15 +527,36 @@ export default function TourDetail() {
                     )}
                   </div>
                   {!isNew && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAddSiteWizard(true)}
-                      disabled={!isAdmin && formData.status === 'ready'}
-                      className="px-4 py-2 bg-[#8B6F47] hover:bg-[#6F5838] text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <span className="text-lg">+</span>
-                      Add Site
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => generateAudioMutation.mutate()}
+                        disabled={!tourData?.sites || tourData.sites.length === 0 || generateAudioMutation.isPending || (!isAdmin && formData.status === 'ready')}
+                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Generate audio for all sites that don't have audio"
+                      >
+                        {generateAudioMutation.isPending ? (
+                          <>
+                            <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            Generating...
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-lg">🎵</span>
+                            Generate Audio for Sites
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddSiteWizard(true)}
+                        disabled={!isAdmin && formData.status === 'ready'}
+                        className="px-4 py-2 bg-[#8B6F47] hover:bg-[#6F5838] text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <span className="text-lg">+</span>
+                        Add Site
+                      </button>
+                    </div>
                   )}
                 </div>
 

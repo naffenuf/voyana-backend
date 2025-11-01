@@ -6,7 +6,11 @@ from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_req
 from sqlalchemy import or_
 from app import db
 from app.models.tour import Tour
+from app.models.site import Site
+from app.models.user import User
+from app.services.tts_service import generate_audio
 import math
+import time
 
 tours_bp = Blueprint('tours', __name__)
 
@@ -531,3 +535,137 @@ def nearby_tours():
         'neighborhoodOffset': neighborhood_offset,
         'hasMore': end_idx < total_neighborhoods
     }), 200
+
+
+@tours_bp.route('/<uuid:tour_id>/generate-audio-for-sites', methods=['POST'])
+@jwt_required()
+def generate_audio_for_tour_sites(tour_id):
+    """
+    Generate audio for all sites in a tour that don't already have audio URLs.
+
+    Args:
+        tour_id: UUID of the tour
+
+    Returns:
+        {
+            "sitesProcessed": 5,
+            "sitesSkipped": 2,
+            "results": [
+                {
+                    "siteId": "uuid",
+                    "siteTitle": "Site Name",
+                    "status": "success" | "skipped" | "error",
+                    "audioUrl": "https://...",
+                    "fromCache": true,
+                    "error": "error message if failed"
+                }
+            ]
+        }
+    """
+    user_id = get_jwt_identity()
+
+    try:
+        # Get the tour
+        tour = Tour.query.get(tour_id)
+
+        if not tour:
+            return jsonify({'error': 'Tour not found'}), 404
+
+        # Get current user to check admin status
+        user = User.query.get(user_id)
+        is_admin = user and user.role == 'admin'
+
+        # Check if user has permission to modify this tour (owner or admin)
+        if tour.owner_id != user_id and not is_admin:
+            return jsonify({'error': 'You do not have permission to modify this tour'}), 403
+
+        # Get all sites for this tour through tour_sites junction table
+        tour_sites = tour.tour_sites
+
+        if not tour_sites:
+            return jsonify({'error': 'Tour has no sites'}), 400
+
+        results = []
+        sites_processed = 0
+        sites_skipped = 0
+
+        current_app.logger.info(f'Generating audio for {len(tour_sites)} sites in tour {tour_id}')
+
+        for tour_site in tour_sites:
+            site = tour_site.site
+            # Skip if site already has audio
+            if site.audio_url:
+                current_app.logger.info(f'Site {site.id} already has audio, skipping')
+                results.append({
+                    'siteId': str(site.id),
+                    'siteTitle': site.title,
+                    'status': 'skipped',
+                    'reason': 'Already has audio URL'
+                })
+                sites_skipped += 1
+                continue
+
+            # Skip if site has no description
+            if not site.description or not site.description.strip():
+                current_app.logger.info(f'Site {site.id} has no description, skipping')
+                results.append({
+                    'siteId': str(site.id),
+                    'siteTitle': site.title,
+                    'status': 'skipped',
+                    'reason': 'No description to convert'
+                })
+                sites_skipped += 1
+                continue
+
+            # Generate audio for this site
+            current_app.logger.info(f'Generating audio for site {site.id}: {site.title}')
+
+            # Add a small delay between requests to avoid rate limiting
+            # Skip delay for first site (sites_processed == 0 and sites_skipped == 0)
+            if sites_processed > 0 or sites_skipped > 0:
+                time.sleep(1)  # 1 second delay between audio generation requests
+
+            audio_result = generate_audio(site.description)
+
+            if audio_result['status'] == 'success':
+                # Update site with audio URL
+                site.audio_url = audio_result['audio_url']
+                db.session.add(site)
+
+                results.append({
+                    'siteId': str(site.id),
+                    'siteTitle': site.title,
+                    'status': 'success',
+                    'audioUrl': audio_result['audio_url'],
+                    'fromCache': audio_result.get('from_cache', False)
+                })
+                sites_processed += 1
+                current_app.logger.info(f'Successfully generated audio for site {site.id}')
+            else:
+                results.append({
+                    'siteId': str(site.id),
+                    'siteTitle': site.title,
+                    'status': 'error',
+                    'error': audio_result.get('error', 'Unknown error')
+                })
+                current_app.logger.error(f'Failed to generate audio for site {site.id}: {audio_result.get("error")}')
+
+        # Commit all changes
+        try:
+            db.session.commit()
+            current_app.logger.info(f'Successfully generated audio for {sites_processed} sites, skipped {sites_skipped}')
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f'Error committing audio URLs: {e}')
+            return jsonify({'error': 'Failed to save audio URLs to sites'}), 500
+
+        return jsonify({
+            'sitesProcessed': sites_processed,
+            'sitesSkipped': sites_skipped,
+            'results': results
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error generating audio for tour sites: {e}', exc_info=True)
+        return jsonify({'error': 'An unexpected error occurred'}), 500
