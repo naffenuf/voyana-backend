@@ -3,17 +3,24 @@ Flask application factory.
 """
 import os
 import logging
-from flask import Flask, jsonify
+from flask import Flask, jsonify, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from sqlalchemy import text
 
 # Initialize extensions (without app instance)
 db = SQLAlchemy()
 migrate = Migrate()
 jwt = JWTManager()
+limiter = Limiter(
+    key_func=lambda: g.get('current_user', {}).get('id') if hasattr(g, 'current_user') and g.current_user else get_remote_address(),
+    default_limits=["1000 per day", "200 per hour"],
+    storage_uri="memory://"
+)
 
 
 def create_app(config_name='development'):
@@ -35,6 +42,7 @@ def create_app(config_name='development'):
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
+    limiter.init_app(app)
     CORS(app)
 
     # Configure logging

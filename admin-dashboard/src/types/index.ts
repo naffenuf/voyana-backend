@@ -272,3 +272,22 @@ export interface NeighborhoodFilters {
   limit?: number;
   offset?: number;
 }
+
+// API Key types
+export interface ApiKey {
+  id: number;
+  name: string;
+  key?: string;  // Only included in create response
+  userId: number;
+  userName: string;
+  isActive: boolean;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+
+export interface ApiKeyFilters {
+  user_id?: number;
+  is_active?: boolean;
+  limit?: number;
+  offset?: number;
+}

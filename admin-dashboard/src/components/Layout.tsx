@@ -55,6 +55,9 @@ export default function Layout() {
                     <NavLink to="/ai-traces" className={navLinkClass}>
                       <span>AI Traces</span>
                     </NavLink>
+                    <NavLink to="/api-keys" className={navLinkClass}>
+                      <span>API Keys</span>
+                    </NavLink>
                   </>
                 )}
                 <NavLink to="/profile" className={navLinkClass}>

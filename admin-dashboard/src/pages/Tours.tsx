@@ -23,6 +23,7 @@ export default function Tours() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [cityFilter, setCityFilter] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
 
   // Use admin API if user is admin, otherwise regular API
   const { data, isLoading } = useQuery({
@@ -54,6 +55,57 @@ export default function Tours() {
     deleteMutation.mutate(tour.id);
   };
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Reset the input so the same file can be uploaded again
+    event.target.value = '';
+
+    try {
+      setIsUploading(true);
+
+      // Read the file
+      const text = await file.text();
+      const tours = JSON.parse(text);
+
+      // Validate it's an array
+      if (!Array.isArray(tours)) {
+        toast.error('Invalid file format. Expected a JSON array of tours.');
+        return;
+      }
+
+      // Upload the tours
+      const result = await adminToursApi.upload(tours);
+
+      // Show results
+      if (result.summary.succeeded > 0) {
+        toast.success(
+          `Successfully uploaded ${result.summary.succeeded} tour${result.summary.succeeded !== 1 ? 's' : ''}`
+        );
+      }
+
+      if (result.summary.failed > 0) {
+        toast.error(
+          `${result.summary.failed} tour${result.summary.failed !== 1 ? 's' : ''} failed to upload`
+        );
+
+        // Log errors for debugging
+        result.errors.forEach(error => {
+          console.error(`Failed to upload "${error.tourName}":`, error.error);
+        });
+      }
+
+      // Refresh the tours list
+      queryClient.invalidateQueries({ queryKey: ['tours'] });
+    } catch (error: any) {
+      console.error('Upload error:', error);
+      toast.error(error.response?.data?.error || error.message || 'Failed to upload tours');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -62,12 +114,26 @@ export default function Tours() {
           <h1 className="text-3xl font-bold text-gray-900">Tours</h1>
           <p className="text-gray-600 mt-1">Manage your tour collection</p>
         </div>
-        <Link
-          to="/tours/new"
-          className="px-6 py-2.5 bg-[#944F2E] hover:bg-[#7d4227] text-white rounded-lg font-medium transition-colors"
-        >
-          Create Tour
-        </Link>
+        <div className="flex gap-3">
+          {isAdmin && (
+            <label className={`px-6 py-2.5 bg-white hover:bg-gray-50 text-[#944F2E] border-2 border-[#944F2E] rounded-lg font-medium transition-colors cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+                className="hidden"
+              />
+              {isUploading ? 'Uploading...' : 'Upload Tours JSON'}
+            </label>
+          )}
+          <Link
+            to="/tours/new"
+            className="px-6 py-2.5 bg-[#944F2E] hover:bg-[#7d4227] text-white rounded-lg font-medium transition-colors"
+          >
+            Create Tour
+          </Link>
+        </div>
       </div>
 
       {/* Filters */}

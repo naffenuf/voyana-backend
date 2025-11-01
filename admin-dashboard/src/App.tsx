@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './lib/auth';
 import Layout from './components/Layout';
+import AdminRoute from './components/AdminRoute';
 import Login from './pages/Login';
 import Tours from './pages/Tours';
 import TourDetail from './pages/TourDetail';
@@ -14,6 +15,7 @@ import Neighborhoods from './pages/Neighborhoods';
 import Profile from './pages/Profile';
 import AITraces from './pages/AITraces';
 import HeatMap from './pages/HeatMap';
+import ApiKeys from './pages/ApiKeys';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -66,10 +68,11 @@ function AppRoutes() {
         <Route path="sites" element={<Sites />} />
         <Route path="sites/:id" element={<SiteDetail />} />
         <Route path="heat-map" element={<HeatMap />} />
-        <Route path="users" element={<Users />} />
-        <Route path="users/:id" element={<UserDetail />} />
-        <Route path="neighborhoods" element={<Neighborhoods />} />
-        <Route path="ai-traces" element={<AITraces />} />
+        <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
+        <Route path="users/:id" element={<AdminRoute><UserDetail /></AdminRoute>} />
+        <Route path="neighborhoods" element={<AdminRoute><Neighborhoods /></AdminRoute>} />
+        <Route path="ai-traces" element={<AdminRoute><AITraces /></AdminRoute>} />
+        <Route path="api-keys" element={<AdminRoute><ApiKeys /></AdminRoute>} />
         <Route path="profile" element={<Profile />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
