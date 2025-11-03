@@ -5,13 +5,14 @@ from flask import Blueprint, request, jsonify, current_app, g
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import limiter
 from app.services.maps_service import optimize_route
+from app.utils.device_binding import device_binding_required, get_device_id_for_rate_limit
 
 maps_bp = Blueprint('maps', __name__)
 
 
 @maps_bp.route('/route', methods=['POST'])
-@jwt_required()
-@limiter.limit("100 per hour", key_func=lambda: f"maps_route_{get_jwt_identity()}")
+@device_binding_required()
+@limiter.limit("100 per hour", key_func=get_device_id_for_rate_limit)
 def get_route():
     """
     Get optimized route between origin, waypoints, and destination.

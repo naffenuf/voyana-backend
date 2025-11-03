@@ -8,6 +8,7 @@ from app.models.neighborhood import NeighborhoodDescription
 from app.models.feedback import Feedback
 from app.models.audio_cache import AudioCache
 from app.models.ai_trace import AITrace
+from app.models.device import DeviceRegistration
 
 __all__ = [
     'User',
@@ -20,4 +21,5 @@ __all__ = [
     'Feedback',
     'AudioCache',
     'AITrace',
+    'DeviceRegistration',
 ]

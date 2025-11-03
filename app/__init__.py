@@ -6,7 +6,7 @@ import logging
 from flask import Flask, jsonify, g
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from flask_jwt_extended import JWTManager
+from flask_jwt_extended import JWTManager, jwt_required
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -21,6 +21,79 @@ limiter = Limiter(
     default_limits=["1000 per day", "200 per hour"],
     storage_uri="memory://"
 )
+
+
+def register_jwt_callbacks(app):
+    """Register JWT callbacks for device validation."""
+    from flask_jwt_extended import get_jwt
+    from app.models.device import DeviceRegistration
+
+    @jwt.additional_claims_loader
+    def add_claims_to_access_token(identity):
+        """Add additional claims to JWT token."""
+        # Claims are already added when token is created
+        # This is just a placeholder for future claims
+        return {}
+
+    @jwt.token_in_blocklist_loader
+    def check_if_token_revoked(jwt_header, jwt_payload):
+        """
+        Check if JWT token should be revoked (device not active).
+
+        This callback is called for every @jwt_required() endpoint.
+        Return True to block the token, False to allow it.
+        """
+        # Get device_id from JWT claims
+        device_id = jwt_payload.get('device_id')
+
+        if not device_id:
+            # Token doesn't have device_id claim (old token or user token)
+            # Allow it for backward compatibility
+            return False
+
+        # Check if device is registered and active
+        is_active = DeviceRegistration.is_device_active(device_id)
+
+        if not is_active:
+            app.logger.warning(f'Token blocked: device {device_id} not active')
+            return True  # Block the token
+
+        # Update last_used_at timestamp for active devices
+        DeviceRegistration.update_last_used(device_id)
+
+        return False  # Allow the token
+
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_data):
+        """Handle expired JWT tokens."""
+        return jsonify({
+            'error': 'Token has expired',
+            'code': 'token_expired'
+        }), 401
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error):
+        """Handle invalid JWT tokens (including failed device verification)."""
+        return jsonify({
+            'error': 'Invalid token or device not authorized',
+            'code': 'invalid_token'
+        }), 401
+
+    @jwt.unauthorized_loader
+    def missing_token_callback(error):
+        """Handle missing JWT tokens."""
+        return jsonify({
+            'error': 'Authorization token is missing',
+            'code': 'missing_token'
+        }), 401
+
+    @jwt.revoked_token_loader
+    def revoked_token_callback(jwt_header, jwt_payload):
+        """Handle revoked JWT tokens (device not active)."""
+        return jsonify({
+            'error': 'Device not authorized or has been deactivated',
+            'code': 'device_revoked'
+        }), 401
 
 
 def create_app(config_name='development'):
@@ -44,6 +117,9 @@ def create_app(config_name='development'):
     jwt.init_app(app)
     limiter.init_app(app)
     CORS(app)
+
+    # Register JWT callbacks for device validation
+    register_jwt_callbacks(app)
 
     # Configure logging
     setup_logging(app)
@@ -150,6 +226,7 @@ def register_blueprints(app):
 
     # Text-to-speech endpoint (legacy compatibility - iOS expects it at /api/text-to-audio)
     @app.route('/api/text-to-audio', methods=['POST'])
+    @jwt_required()
     def text_to_audio():
         """
         Generate audio from text with caching.
@@ -166,6 +243,9 @@ def register_blueprints(app):
                 "audioUrl": "https://s3.amazonaws.com/...",
                 "fromCache": true
             }
+
+        Authentication:
+            Requires valid JWT token in Authorization header
         """
         from flask import request
         from app.services.tts_service import generate_audio

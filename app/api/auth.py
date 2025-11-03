@@ -12,42 +12,48 @@ from flask_jwt_extended import (
 from datetime import timedelta
 from app import db, limiter
 from app.models.user import User, PasswordResetToken
+from app.models.device import DeviceRegistration
 
 auth_bp = Blueprint('auth', __name__)
 
 
 @auth_bp.route('/register-device', methods=['POST'])
-@limiter.limit("10 per hour", key_func=lambda: request.remote_addr)
+@limiter.limit("1000 per hour", key_func=lambda: request.remote_addr)
 def register_device():
     """
     Register a device and get JWT token (no user account required).
 
+    Uses simple device binding with vendor ID for lightweight security.
+
     Request body:
         {
-            "api_key": "xxx",
-            "device_id": "xxx",
-            "device_name": "iPhone 15"  (optional)
+            "device_id": "vendor-id-from-device",
+            "device_name": "iPhone 15"
         }
 
     Returns:
         {
             "access_token": "...",
-            "expires_in": 31536000  (1 year in seconds)
+            "expires_in": 31536000
         }
     """
     data = request.get_json()
 
-    # Validate required fields
-    if not data or not data.get('api_key') or not data.get('device_id'):
-        return jsonify({'error': 'api_key and device_id are required'}), 400
-
-    # Validate API key against configured admin key
-    valid_api_key = current_app.config.get('ADMIN_API_KEY')
-    if not valid_api_key or data['api_key'] != valid_api_key:
-        return jsonify({'error': 'Invalid API key'}), 401
+    if not data or not data.get('device_id'):
+        return jsonify({'error': 'device_id is required'}), 400
 
     device_id = data['device_id']
     device_name = data.get('device_name', 'Unknown Device')
+    platform = data.get('platform', 'iOS')
+
+    current_app.logger.info(f"[Auth] Registering device {device_id}")
+
+    # Register device in database
+    device, was_created = DeviceRegistration.register_device(
+        device_id=device_id,
+        device_name=device_name,
+        platform=platform
+    )
 
     # Create JWT token with device identity (1 year expiry)
     access_token = create_access_token(
@@ -60,10 +66,18 @@ def register_device():
         expires_delta=timedelta(days=365)
     )
 
+    status_code = 201 if was_created else 200
+    current_app.logger.info(
+        f"[Auth] Device {device_id} registered successfully "
+        f"(method: vendor_id, new: {was_created})"
+    )
+
     return jsonify({
         'access_token': access_token,
-        'expires_in': 31536000  # 1 year in seconds
-    }), 200
+        'expires_in': 31536000,  # 1 year in seconds
+        'registered': was_created,
+        'device': device.to_dict()
+    }), status_code
 
 
 @auth_bp.route('/register', methods=['POST'])

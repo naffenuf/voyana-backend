@@ -9,6 +9,7 @@ from app.models.tour import Tour
 from app.models.site import Site
 from app.models.user import User
 from app.services.tts_service import generate_audio
+from app.utils.device_binding import device_binding_required, get_device_id_for_rate_limit
 import math
 import time
 
@@ -36,10 +37,11 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 
 @tours_bp.route('', methods=['GET'])
-@limiter.limit("1000 per hour", key_func=lambda: get_jwt_identity() if verify_jwt_in_request(optional=True) else request.remote_addr)
+@device_binding_required()
+@limiter.limit("100 per hour", key_func=get_device_id_for_rate_limit)
 def list_tours():
     """
-    List tours (public tours + authenticated user's own tours).
+    List tours (requires authentication).
 
     Query params:
         - search: Text search in name, city, neighborhood
@@ -61,15 +63,9 @@ def list_tours():
             "offset": offset
         }
     """
-    # Check if user is authenticated (optional)
-    user_id = None
-    try:
-        verify_jwt_in_request(optional=True)
-        jwt_identity = get_jwt_identity()
-        if jwt_identity:
-            user_id = int(jwt_identity)
-    except:
-        pass
+    # Get authenticated user ID (JWT required)
+    jwt_identity = get_jwt_identity()
+    user_id = int(jwt_identity) if jwt_identity and jwt_identity.isdigit() else None
 
     # Get query params
     search_text = request.args.get('search', '').strip()
@@ -88,15 +84,12 @@ def list_tours():
     query = Tour.query
 
     # Access control: published tours OR user's own tours
-    if user_id:
-        query = query.filter(
-            or_(
-                Tour.status == 'published',
-                Tour.owner_id == user_id
-            )
+    query = query.filter(
+        or_(
+            Tour.status == 'published',
+            Tour.owner_id == user_id
         )
-    else:
-        query = query.filter(Tour.status == 'published')
+    )
 
     # Text search filter
     if search_text:
@@ -162,9 +155,10 @@ def list_tours():
 
 
 @tours_bp.route('/<uuid:tour_id>', methods=['GET'])
+@device_binding_required()
 def get_tour(tour_id):
     """
-    Get a specific tour by ID.
+    Get a specific tour by ID (requires authentication).
 
     Returns:
         {
@@ -176,32 +170,23 @@ def get_tour(tour_id):
     if not tour:
         return jsonify({'error': 'Tour not found'}), 404
 
-    # Check if user has access (public or owner)
-    user_id = None
-    try:
-        verify_jwt_in_request(optional=True)
-        jwt_identity = get_jwt_identity()
-        if jwt_identity:
-            user_id = int(jwt_identity)
-    except:
-        pass
+    # Get authenticated user ID
+    jwt_identity = get_jwt_identity()
+    user_id = int(jwt_identity) if jwt_identity and jwt_identity.isdigit() else None
 
     # Allow access if tour is published OR user is the owner OR user is admin
-    if tour.status != 'published' and (not user_id or tour.owner_id != user_id):
+    if tour.status != 'published' and tour.owner_id != user_id:
         # Check if user is admin
-        try:
-            claims = get_jwt()
-            if claims.get('role') != 'admin':
-                return jsonify({'error': 'Unauthorized'}), 403
-        except:
+        claims = get_jwt()
+        if claims.get('role') != 'admin':
             return jsonify({'error': 'Unauthorized'}), 403
 
     return jsonify({'tour': tour.to_dict()}), 200
 
 
 @tours_bp.route('', methods=['POST'])
-@jwt_required()
-@limiter.limit("100 per hour", key_func=lambda: f"create_tour_{get_jwt_identity()}")
+@device_binding_required()
+@limiter.limit("50 per hour", key_func=get_device_id_for_rate_limit)
 def create_tour():
     """
     Create a new tour.
@@ -244,7 +229,7 @@ def create_tour():
 
 
 @tours_bp.route('/<uuid:tour_id>', methods=['PUT'])
-@jwt_required()
+@device_binding_required()
 def update_tour(tour_id):
     """
     Update an existing tour (owner or admin only).
@@ -397,9 +382,10 @@ def delete_tour(tour_id):
 
 
 @tours_bp.route('/nearby', methods=['GET'])
+@jwt_required()
 def nearby_tours():
     """
-    Find tours by proximity, grouped by neighborhoods.
+    Find tours by proximity, grouped by neighborhoods (requires authentication).
 
     Returns tours from the closest N neighborhoods (based on distance to each tour).
     Algorithm:
@@ -447,29 +433,20 @@ def nearby_tours():
     if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
         return jsonify({'error': 'Latitude must be -90 to 90, longitude must be -180 to 180'}), 400
 
-    # Check if user is authenticated (optional)
-    user_id = None
-    try:
-        verify_jwt_in_request(optional=True)
-        jwt_identity = get_jwt_identity()
-        if jwt_identity:
-            user_id = int(jwt_identity)
-    except:
-        pass
+    # Get authenticated user ID (JWT required)
+    jwt_identity = get_jwt_identity()
+    user_id = int(jwt_identity) if jwt_identity and jwt_identity.isdigit() else None
 
     # Build base query
     query = Tour.query
 
     # Access control: published tours OR user's own tours
-    if user_id:
-        query = query.filter(
-            or_(
-                Tour.status == 'published',
-                Tour.owner_id == user_id
-            )
+    query = query.filter(
+        or_(
+            Tour.status == 'published',
+            Tour.owner_id == user_id
         )
-    else:
-        query = query.filter(Tour.status == 'published')
+    )
 
     # Optional city filter
     if city:
