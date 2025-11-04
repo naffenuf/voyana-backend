@@ -2,12 +2,13 @@
 Admin file upload endpoints.
 """
 from flask import Blueprint, request, jsonify, current_app, g
-from flask_jwt_extended import jwt_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from werkzeug.utils import secure_filename
 from app import limiter
 from app.services.s3_service import upload_file_to_s3
 from app.services.tts_service import generate_audio
 from app.utils.admin_required import admin_required
+from app.utils.image_processing import process_hero_image, validate_image
 import uuid
 import os
 
@@ -53,7 +54,7 @@ def get_content_type(filename):
 @admin_upload_bp.route('/image', methods=['POST'])
 @jwt_required()
 @admin_required()
-@limiter.limit("50 per hour", key_func=lambda: f"upload_image_{g.current_user.id}")
+@limiter.limit("50 per hour", key_func=lambda: f"upload_image_{get_jwt_identity()}")
 def upload_image():
     """
     Upload an image file to S3 (admin only).
@@ -63,6 +64,14 @@ def upload_image():
         Body:
             - file: Image file
             - folder: Optional folder/prefix (default: 'images')
+            - process: Optional 'true'/'false' - whether to optimize image (default: 'false')
+
+    When process=true:
+        - Resizes to max 1170x2532 pixels (iPhone optimal)
+        - Converts to JPEG format
+        - Compresses to 85% quality
+        - Removes EXIF metadata
+        - Typical output: 200-500 KB
 
     Returns:
         {
@@ -96,20 +105,52 @@ def upload_image():
             'error': f'File too large. Maximum size: {MAX_IMAGE_SIZE // (1024 * 1024)} MB'
         }), 400
 
-    # Generate unique filename
-    original_filename = secure_filename(file.filename)
-    extension = original_filename.rsplit('.', 1)[1].lower()
-    unique_filename = f"{uuid.uuid4()}.{extension}"
+    # Read file data
+    file_data = file.read()
 
     # Get folder from form data or use default
     folder = request.form.get('folder', 'images')
 
-    # Get content type
-    content_type = get_content_type(original_filename)
+    # Get original filename for response
+    original_filename = secure_filename(file.filename)
+
+    # Check if image processing is requested (for hero images)
+    process_image = request.form.get('process', 'false').lower() == 'true'
+
+    # Process image if requested
+    if process_image:
+        try:
+            current_app.logger.info('Processing image for optimization...')
+
+            # Validate image first
+            original_metadata = validate_image(file_data)
+            current_app.logger.info(f'Original image: {original_metadata}')
+
+            # Process and optimize image
+            file_data = process_hero_image(
+                image_data=file_data,
+                max_width=1170,
+                max_height=2532,
+                quality=85
+            )
+
+            # Force JPEG extension after processing
+            unique_filename = f"{uuid.uuid4()}.jpg"
+            content_type = 'image/jpeg'
+
+            current_app.logger.info(f'Image processed successfully: {len(file_data) / 1024:.2f} KB')
+
+        except ValueError as e:
+            return jsonify({'error': f'Image processing failed: {str(e)}'}), 400
+    else:
+        # No processing - use original file extension
+        extension = original_filename.rsplit('.', 1)[1].lower()
+        unique_filename = f"{uuid.uuid4()}.{extension}"
+        content_type = get_content_type(original_filename)
 
     # Upload to S3
     file_url = upload_file_to_s3(
-        file_data=file.read(),
+        file_data=file_data,
         file_name=unique_filename,
         folder=folder,
         content_type=content_type
@@ -129,7 +170,7 @@ def upload_image():
 @admin_upload_bp.route('/audio', methods=['POST'])
 @jwt_required()
 @admin_required()
-@limiter.limit("30 per hour", key_func=lambda: f"upload_audio_{g.current_user.id}")
+@limiter.limit("30 per hour", key_func=lambda: f"upload_audio_{get_jwt_identity()}")
 def upload_audio():
     """
     Upload an audio file to S3 (admin only).
@@ -205,7 +246,7 @@ def upload_audio():
 @admin_upload_bp.route('/generate-audio', methods=['POST'])
 @jwt_required()
 @admin_required()
-@limiter.limit("10 per hour", key_func=lambda: f"generate_audio_{g.current_user.id}")
+@limiter.limit("10 per hour", key_func=lambda: f"generate_audio_{get_jwt_identity()}")
 def generate_tts_audio():
     """
     Generate audio from text using TTS and upload to S3 (admin only).

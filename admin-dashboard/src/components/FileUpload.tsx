@@ -11,6 +11,7 @@ interface FileUploadProps {
   className?: string;
   iconOnly?: boolean;
   uniqueId?: string;
+  processImage?: boolean;
 }
 
 export default function FileUpload({
@@ -21,7 +22,8 @@ export default function FileUpload({
   accept,
   className,
   iconOnly = false,
-  uniqueId
+  uniqueId,
+  processImage = false
 }: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -34,7 +36,7 @@ export default function FileUpload({
 
     try {
       const result = type === 'image'
-        ? await uploadApi.uploadImage(file, folder)
+        ? await uploadApi.uploadImage(file, folder, processImage)
         : await uploadApi.uploadAudio(file, folder);
 
       onUploadComplete(result.url);

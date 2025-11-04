@@ -507,12 +507,67 @@ def nearby_tours():
         tour_dict['neighborhood'] = item['neighborhood']
         tours_data.append(tour_dict)
 
+    # Get city context from closest tour
+    city_context = None
+    if tours_with_distance:
+        from app.models.city import City
+        import math
+
+        def haversine_distance_km(lat1, lon1, lat2, lon2):
+            """Calculate distance in kilometers."""
+            R = 6371  # Earth radius in km
+            lat1_rad = math.radians(lat1)
+            lat2_rad = math.radians(lat2)
+            delta_lat = math.radians(lat2 - lat1)
+            delta_lon = math.radians(lon2 - lon1)
+            a = (math.sin(delta_lat / 2) ** 2 +
+                 math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(delta_lon / 2) ** 2)
+            c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+            return R * c
+
+        # Get city name and coordinates from closest tour
+        closest_tour = tours_with_distance[0]['tour']
+        if closest_tour.city:
+            # Find the city in database that matches name and is closest to tour coordinates
+            cities_with_name = City.query.filter_by(
+                name=closest_tour.city,
+                is_active=True
+            ).all()
+
+            if cities_with_name:
+                # Find closest city with this name
+                closest_city = None
+                min_distance = float('inf')
+
+                for city_candidate in cities_with_name:
+                    distance = haversine_distance_km(
+                        closest_tour.latitude,
+                        closest_tour.longitude,
+                        city_candidate.latitude,
+                        city_candidate.longitude
+                    )
+                    if distance < min_distance:
+                        min_distance = distance
+                        closest_city = city_candidate
+
+                if closest_city:
+                    city_context = {
+                        'id': closest_city.id,
+                        'name': closest_city.name,
+                        'latitude': closest_city.latitude,
+                        'longitude': closest_city.longitude,
+                        'heroImageUrl': closest_city.hero_image_url,
+                        'heroTitle': closest_city.hero_title,
+                        'heroSubtitle': closest_city.hero_subtitle
+                    }
+
     return jsonify({
         'tours': tours_data,
         'neighborhoods': selected_neighborhoods,
         'totalNeighborhoods': total_neighborhoods,
         'neighborhoodOffset': neighborhood_offset,
-        'hasMore': end_idx < total_neighborhoods
+        'hasMore': end_idx < total_neighborhoods,
+        'cityContext': city_context
     }), 200
 
 

@@ -174,6 +174,7 @@ def register_blueprints(app):
     from app.api.admin import admin_bp
     from app.api.places import places_bp
     from app.api.neighborhoods import neighborhoods_bp
+    from app.api.cities import cities_bp
 
     # API blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -184,6 +185,7 @@ def register_blueprints(app):
     app.register_blueprint(feedback_bp, url_prefix='/api/feedback')
     app.register_blueprint(neighborhoods_bp, url_prefix='/api/neighborhoods')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
+    app.register_blueprint(cities_bp, url_prefix='/api/cities')
     app.register_blueprint(places_bp)
 
     # Health check endpoint (no prefix)
@@ -422,3 +424,46 @@ def register_cli_commands(app):
         db.session.commit()
         app.logger.info(f'Successfully seeded {len(tours_data)} tours with {len(site_map)} unique sites')
         app.logger.info('Admin login: admin@voyana.com / admin123')
+
+    @app.cli.command()
+    def seed_cities():
+        """Seed database with city data (New York for now)."""
+        from app.models.city import City
+
+        # Check if New York already exists
+        nyc = City.query.filter_by(
+            name='New York',
+            latitude=40.7589,
+            longitude=-73.9851
+        ).first()
+
+        if nyc:
+            app.logger.info('New York city already exists in database')
+            app.logger.info(f'Hero Image URL: {nyc.hero_image_url}')
+            return
+
+        # Create New York city entry
+        nyc = City(
+            name='New York',
+            latitude=40.7589,  # Times Square
+            longitude=-73.9851,
+            hero_image_url='https://voyana-tours.s3.us-east-1.amazonaws.com/city-heroes/nyc-night.jpg',  # Update with actual S3 URL
+            hero_title='Explore New York with Voyana Tours',
+            hero_subtitle='',
+            country='United States',
+            state_province='New York',
+            timezone='America/New_York',
+            is_active=True
+        )
+
+        db.session.add(nyc)
+        db.session.commit()
+
+        app.logger.info(f'✅ Created city: {nyc.name}')
+        app.logger.info(f'   Coordinates: ({nyc.latitude}, {nyc.longitude})')
+        app.logger.info(f'   Hero Image: {nyc.hero_image_url}')
+        app.logger.info(f'   Hero Title: {nyc.hero_title}')
+        app.logger.info('')
+        app.logger.info('⚠️  IMPORTANT: Upload NYC hero image to S3 at:')
+        app.logger.info('   s3://voyana-tours/city-heroes/nyc-night.jpg')
+        app.logger.info('   Or update the hero_image_url in the database after uploading.')

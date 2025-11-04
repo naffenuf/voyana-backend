@@ -12,6 +12,7 @@ import SiteDetail from './pages/SiteDetail';
 import Users from './pages/Users';
 import UserDetail from './pages/UserDetail';
 import Neighborhoods from './pages/Neighborhoods';
+import Cities from './pages/Cities';
 import Profile from './pages/Profile';
 import AITraces from './pages/AITraces';
 import HeatMap from './pages/HeatMap';
@@ -71,6 +72,7 @@ function AppRoutes() {
         <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
         <Route path="users/:id" element={<AdminRoute><UserDetail /></AdminRoute>} />
         <Route path="neighborhoods" element={<AdminRoute><Neighborhoods /></AdminRoute>} />
+        <Route path="cities" element={<AdminRoute><Cities /></AdminRoute>} />
         <Route path="ai-traces" element={<AdminRoute><AITraces /></AdminRoute>} />
         <Route path="api-keys" element={<AdminRoute><ApiKeys /></AdminRoute>} />
         <Route path="profile" element={<Profile />} />
