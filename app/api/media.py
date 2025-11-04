@@ -4,12 +4,13 @@ Media API endpoints (images, audio, presigned URLs).
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required
 from app.services.s3_service import generate_presigned_url
+from app.utils.device_binding import device_binding_required
 
 media_bp = Blueprint('media', __name__)
 
 
 @media_bp.route('/presigned-url', methods=['GET'])
-@jwt_required()
+@device_binding_required()
 def get_presigned_url():
     """
     Get S3 presigned URL for accessing private objects.

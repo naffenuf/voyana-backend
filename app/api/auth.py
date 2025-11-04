@@ -13,6 +13,7 @@ from datetime import timedelta
 from app import db, limiter
 from app.models.user import User, PasswordResetToken
 from app.models.device import DeviceRegistration
+from app.utils.device_binding import device_binding_required
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -218,7 +219,7 @@ def refresh():
 
 
 @auth_bp.route('/me', methods=['GET'])
-@jwt_required()
+@device_binding_required()
 def get_current_user():
     """
     Get current user profile.

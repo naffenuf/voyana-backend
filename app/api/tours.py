@@ -181,7 +181,17 @@ def get_tour(tour_id):
         if claims.get('role') != 'admin':
             return jsonify({'error': 'Unauthorized'}), 403
 
-    return jsonify({'tour': tour.to_dict()}), 200
+    # Get tour data
+    tour_data = tour.to_dict()
+
+    # If tour has no music URLs, use default music tracks
+    if not tour_data.get('musicUrls'):
+        from app.models.default_music import DefaultMusicTrack
+        default_tracks = DefaultMusicTrack.query.filter_by(is_active=True).order_by(DefaultMusicTrack.display_order).all()
+        if default_tracks:
+            tour_data['musicUrls'] = [track.url for track in default_tracks]
+
+    return jsonify({'tour': tour_data}), 200
 
 
 @tours_bp.route('', methods=['POST'])
@@ -349,7 +359,7 @@ def update_tour(tour_id):
 
 
 @tours_bp.route('/<uuid:tour_id>', methods=['DELETE'])
-@jwt_required()
+@device_binding_required()
 def delete_tour(tour_id):
     """
     Delete a tour (owner or admin only).
@@ -382,7 +392,7 @@ def delete_tour(tour_id):
 
 
 @tours_bp.route('/nearby', methods=['GET'])
-@jwt_required()
+@device_binding_required()
 def nearby_tours():
     """
     Find tours by proximity, grouped by neighborhoods (requires authentication).
@@ -582,7 +592,7 @@ def nearby_tours():
 
 
 @tours_bp.route('/<uuid:tour_id>/generate-audio-for-sites', methods=['POST'])
-@jwt_required()
+@device_binding_required()
 @limiter.limit("5 per hour", key_func=lambda: f"generate_audio_batch_{get_jwt_identity()}")
 def generate_audio_for_tour_sites(tour_id):
     """

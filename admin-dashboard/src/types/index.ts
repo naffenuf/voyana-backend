@@ -291,3 +291,14 @@ export interface ApiKeyFilters {
   limit?: number;
   offset?: number;
 }
+
+// Default Music Track types
+export interface DefaultMusicTrack {
+  id: string;
+  url: string;
+  title: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}

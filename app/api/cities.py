@@ -7,6 +7,7 @@ from app import db
 from app.models.city import City
 from app.models.tour import Tour
 from sqlalchemy import func
+from app.utils.device_binding import device_binding_required
 import math
 
 
@@ -33,7 +34,7 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 
 
 @cities_bp.route('', methods=['GET'])
-@jwt_required()
+@device_binding_required()
 def list_cities():
     """
     Get all active cities with tours.
@@ -112,7 +113,7 @@ def list_cities():
 
 
 @cities_bp.route('/<int:city_id>', methods=['GET'])
-@jwt_required()
+@device_binding_required()
 def get_city(city_id):
     """
     Get a specific city by ID.
@@ -149,7 +150,7 @@ def get_city(city_id):
 
 
 @cities_bp.route('/by-location', methods=['GET'])
-@jwt_required()
+@device_binding_required()
 def get_city_by_location():
     """
     Find the closest city to given coordinates with the specified name.

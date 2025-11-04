@@ -17,6 +17,7 @@ import Profile from './pages/Profile';
 import AITraces from './pages/AITraces';
 import HeatMap from './pages/HeatMap';
 import ApiKeys from './pages/ApiKeys';
+import DefaultMusic from './pages/DefaultMusic';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -73,6 +74,7 @@ function AppRoutes() {
         <Route path="users/:id" element={<AdminRoute><UserDetail /></AdminRoute>} />
         <Route path="neighborhoods" element={<AdminRoute><Neighborhoods /></AdminRoute>} />
         <Route path="cities" element={<AdminRoute><Cities /></AdminRoute>} />
+        <Route path="default-music" element={<AdminRoute><DefaultMusic /></AdminRoute>} />
         <Route path="ai-traces" element={<AdminRoute><AITraces /></AdminRoute>} />
         <Route path="api-keys" element={<AdminRoute><ApiKeys /></AdminRoute>} />
         <Route path="profile" element={<Profile />} />

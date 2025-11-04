@@ -55,6 +55,9 @@ export default function Layout() {
                     <NavLink to="/cities" className={navLinkClass}>
                       <span>Cities</span>
                     </NavLink>
+                    <NavLink to="/default-music" className={navLinkClass}>
+                      <span>Default Music</span>
+                    </NavLink>
                     <NavLink to="/ai-traces" className={navLinkClass}>
                       <span>AI Traces</span>
                     </NavLink>

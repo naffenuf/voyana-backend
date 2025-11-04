@@ -175,6 +175,7 @@ def register_blueprints(app):
     from app.api.places import places_bp
     from app.api.neighborhoods import neighborhoods_bp
     from app.api.cities import cities_bp
+    from app.api.default_music import default_music_bp
 
     # API blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -186,6 +187,7 @@ def register_blueprints(app):
     app.register_blueprint(neighborhoods_bp, url_prefix='/api/neighborhoods')
     app.register_blueprint(admin_bp, url_prefix='/api/admin')
     app.register_blueprint(cities_bp, url_prefix='/api/cities')
+    app.register_blueprint(default_music_bp, url_prefix='/api/default-music')
     app.register_blueprint(places_bp)
 
     # Health check endpoint (no prefix)

@@ -7,6 +7,7 @@ from sqlalchemy import or_, and_, func
 from app import db
 from app.models.site import Site
 from app.utils.admin_required import admin_required
+from app.utils.device_binding import device_binding_required
 import math
 
 
@@ -146,7 +147,7 @@ def get_site(site_id):
 
 
 @sites_bp.route('', methods=['POST'])
-@jwt_required()
+@device_binding_required()
 def create_site():
     """
     Create a new site.
@@ -228,7 +229,7 @@ def create_site():
 
 
 @sites_bp.route('/<uuid:site_id>', methods=['PUT'])
-@jwt_required()
+@device_binding_required()
 @admin_required()
 def update_site(site_id):
     """
@@ -308,7 +309,7 @@ def update_site(site_id):
 
 
 @sites_bp.route('/<uuid:site_id>', methods=['DELETE'])
-@jwt_required()
+@device_binding_required()
 @admin_required()
 def delete_site(site_id):
     """
