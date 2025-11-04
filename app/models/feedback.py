@@ -41,9 +41,14 @@ class Feedback(db.Model):
     user = db.relationship('User', foreign_keys=[user_id])
     reviewer = db.relationship('User', foreign_keys=[reviewed_by])
 
-    def to_dict(self):
-        """Convert to dictionary."""
-        return {
+    def to_dict(self, include_details=False):
+        """
+        Convert to dictionary.
+
+        Args:
+            include_details: If True, include user/tour/site details and type-specific data
+        """
+        result = {
             'id': self.id,
             'tourId': str(self.tour_id) if self.tour_id else None,
             'siteId': str(self.site_id) if self.site_id else None,
@@ -58,6 +63,51 @@ class Feedback(db.Model):
             'reviewedAt': self.reviewed_at.isoformat() if self.reviewed_at else None,
             'reviewedBy': self.reviewed_by,
         }
+
+        # Include related entity details if requested (for admin views)
+        if include_details:
+            # User info
+            if self.user:
+                result['user'] = {
+                    'id': self.user.id,
+                    'name': self.user.name,
+                    'email': self.user.email,
+                }
+            else:
+                result['user'] = None  # Anonymous
+
+            # Tour info
+            if self.tour:
+                result['tour'] = {
+                    'id': str(self.tour.id),
+                    'name': self.tour.name,
+                    'city': self.tour.city,
+                    'neighborhood': self.tour.neighborhood,
+                }
+            else:
+                result['tour'] = None
+
+            # Site info
+            if self.site:
+                result['site'] = {
+                    'id': str(self.site.id),
+                    'title': self.site.title,
+                    'latitude': self.site.latitude,
+                    'longitude': self.site.longitude,
+                    'imageUrl': self.site.image_url,
+                }
+            else:
+                result['site'] = None
+
+            # Type-specific details
+            if self.feedback_type == 'issue' and hasattr(self, 'issue_detail') and self.issue_detail:
+                result['issueDetail'] = self.issue_detail.to_dict()
+            elif self.feedback_type == 'photo' and hasattr(self, 'photo_detail') and self.photo_detail:
+                result['photoDetail'] = self.photo_detail.to_dict()
+            elif self.feedback_type == 'location' and hasattr(self, 'location_detail') and self.location_detail:
+                result['locationDetail'] = self.location_detail.to_dict()
+
+        return result
 
     def __repr__(self):
         target = f'tour={self.tour_id}' if self.tour_id else f'site={self.site_id}'

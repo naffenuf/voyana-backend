@@ -4,6 +4,9 @@ Admin-only API endpoints.
 from flask import Blueprint
 from .users import admin_users_bp
 from .feedback import admin_feedback_bp
+from .issues import admin_issues_bp
+from .photo_submissions import admin_photo_submissions_bp
+from .location_data import admin_location_data_bp
 from .upload import admin_upload_bp
 from .tours import admin_tours_bp
 from .ai import admin_ai_bp
@@ -17,6 +20,9 @@ admin_bp = Blueprint('admin', __name__)
 # Register sub-blueprints
 admin_bp.register_blueprint(admin_users_bp, url_prefix='/users')
 admin_bp.register_blueprint(admin_feedback_bp, url_prefix='/feedback')
+admin_bp.register_blueprint(admin_issues_bp, url_prefix='/issues')
+admin_bp.register_blueprint(admin_photo_submissions_bp, url_prefix='/photo-submissions')
+admin_bp.register_blueprint(admin_location_data_bp, url_prefix='/location-data')
 admin_bp.register_blueprint(admin_upload_bp, url_prefix='/upload')
 admin_bp.register_blueprint(admin_tours_bp, url_prefix='/tours')
 admin_bp.register_blueprint(admin_ai_bp, url_prefix='/ai')
