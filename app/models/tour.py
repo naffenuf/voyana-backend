@@ -112,6 +112,11 @@ class Tour(db.Model):
             result['sites'] = [ts.site.to_dict() for ts in self.tour_sites]
             result['siteIds'] = [str(ts.site_id) for ts in self.tour_sites]
 
+        # Add default music tracks as fallback for tours without music
+        from app.models.default_music import DefaultMusicTrack
+        default_tracks = DefaultMusicTrack.query.filter_by(is_active=True).order_by(DefaultMusicTrack.display_order).all()
+        result['defaultMusicTracks'] = [track.to_dict() for track in default_tracks]
+
         return result
 
     def __repr__(self):
