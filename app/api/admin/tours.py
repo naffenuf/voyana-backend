@@ -298,6 +298,7 @@ def bulk_upload_tours():
                 db.session.flush()  # Get tour.id
 
                 sites_created = 0
+                added_site_ids = set()  # Track sites already added to this tour
 
                 # Process sites
                 for order, site_data in enumerate(tour_data['sites'], start=1):
@@ -342,6 +343,11 @@ def bulk_upload_tours():
                         db.session.flush()
                         sites_created += 1
 
+                    # Skip if this site is already added to this tour
+                    if site.id in added_site_ids:
+                        current_app.logger.warning(f"Duplicate site '{site_data.get('title')}' in tour {tour_data['name']}, skipping")
+                        continue
+
                     # Create tour-site relationship
                     tour_site = TourSite(
                         tour_id=tour.id,
@@ -349,6 +355,7 @@ def bulk_upload_tours():
                         display_order=order
                     )
                     db.session.add(tour_site)
+                    added_site_ids.add(site.id)  # Mark this site as added
 
                 # Commit this tour
                 db.session.commit()

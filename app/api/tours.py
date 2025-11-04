@@ -477,6 +477,16 @@ def nearby_tours():
     # Sort by distance (ascending)
     tours_with_distance.sort(key=lambda x: x['distance'])
 
+    # Filter by closest tour's city (unless city filter was explicitly provided)
+    if not city and tours_with_distance:
+        closest_city = tours_with_distance[0]['tour'].city
+        if closest_city:
+            tours_with_distance = [
+                item for item in tours_with_distance
+                if item['tour'].city and item['tour'].city.lower() == closest_city.lower()
+            ]
+            current_app.logger.info(f'Filtered tours to city: {closest_city} ({len(tours_with_distance)} tours)')
+
     # Identify unique neighborhoods in order of first appearance
     neighborhoods_ordered = []
     seen_neighborhoods = set()
