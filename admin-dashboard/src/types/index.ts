@@ -80,6 +80,17 @@ export interface Feedback {
   createdAt: string;
   reviewedAt: string | null;
   reviewedBy: number | null;
+  // Related objects (when fetched from API)
+  tour?: {
+    id: string;
+    name: string;
+    city?: string;
+  };
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
 }
 
 // Auth types

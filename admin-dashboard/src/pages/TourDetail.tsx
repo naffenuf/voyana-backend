@@ -797,6 +797,16 @@ export default function TourDetail() {
                 ) : (
                   <div className="text-lg text-gray-500">No ratings yet</div>
                 )}
+
+                {/* View Feedback button (admin only) */}
+                {isAdmin && tourData?.ratingCount > 0 && (
+                  <Link
+                    to={`/tour-ratings?tourId=${id}`}
+                    className="mt-2 inline-flex items-center px-3 py-1 text-sm font-medium text-[#8B6F47] bg-[#F6EDD9] hover:bg-[#8B6F47] hover:text-white rounded-lg transition-colors"
+                  >
+                    View Feedback →
+                  </Link>
+                )}
               </div>
 
 

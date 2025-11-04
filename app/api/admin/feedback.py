@@ -69,7 +69,7 @@ def list_feedback():
     feedback_items = query.order_by(Feedback.created_at.desc()).limit(limit).offset(offset).all()
 
     return jsonify({
-        'feedback': [item.to_dict() for item in feedback_items],
+        'feedback': [item.to_dict(include_details=True) for item in feedback_items],
         'total': total,
         'limit': limit,
         'offset': offset
@@ -93,7 +93,7 @@ def get_feedback(feedback_id):
     if not feedback:
         return jsonify({'error': 'Feedback not found'}), 404
 
-    return jsonify({'feedback': feedback.to_dict()}), 200
+    return jsonify({'feedback': feedback.to_dict(include_details=True)}), 200
 
 
 @admin_feedback_bp.route('/<int:feedback_id>', methods=['PUT'])

@@ -1,14 +1,57 @@
-import { Outlet, NavLink } from 'react-router-dom';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { useState, useRef, useEffect } from 'react';
 
 export default function Layout() {
   const { user, logout } = useAuth();
+  const location = useLocation();
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  const feedbackRef = useRef<HTMLDivElement>(null);
+  const adminRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (feedbackRef.current && !feedbackRef.current.contains(event.target as Node)) {
+        setFeedbackOpen(false);
+      }
+      if (adminRef.current && !adminRef.current.contains(event.target as Node)) {
+        setAdminOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close dropdowns on navigation
+  useEffect(() => {
+    setFeedbackOpen(false);
+    setAdminOpen(false);
+  }, [location.pathname]);
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
       isActive
         ? 'bg-[#8B6F47] text-white shadow-md'
         : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+    }`;
+
+  const dropdownButtonClass = (isOpen: boolean, hasActiveChild: boolean) =>
+    `relative px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
+      hasActiveChild
+        ? 'bg-[#8B6F47] text-white shadow-md'
+        : isOpen
+        ? 'bg-gray-100 text-gray-900'
+        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+    }`;
+
+  const dropdownItemClass = ({ isActive }: { isActive: boolean }) =>
+    `block px-4 py-2 text-sm ${
+      isActive
+        ? 'bg-[#8B6F47] text-white'
+        : 'text-gray-700 hover:bg-gray-100'
     }`;
 
   return (
@@ -34,7 +77,7 @@ export default function Layout() {
               </div>
 
               {/* Navigation Links */}
-              <div className="flex space-x-1">
+              <div className="flex space-x-1 items-center">
                 <NavLink to="/tours" className={navLinkClass}>
                   <span>Tours</span>
                 </NavLink>
@@ -44,28 +87,99 @@ export default function Layout() {
                 <NavLink to="/heat-map" className={navLinkClass}>
                   <span>Heat Map</span>
                 </NavLink>
+
                 {user?.role === 'admin' && (
                   <>
-                    <NavLink to="/users" className={navLinkClass}>
-                      <span>Users</span>
-                    </NavLink>
-                    <NavLink to="/neighborhoods" className={navLinkClass}>
-                      <span>Neighborhoods</span>
-                    </NavLink>
-                    <NavLink to="/cities" className={navLinkClass}>
-                      <span>Cities</span>
-                    </NavLink>
-                    <NavLink to="/default-music" className={navLinkClass}>
-                      <span>Default Music</span>
-                    </NavLink>
-                    <NavLink to="/ai-traces" className={navLinkClass}>
-                      <span>AI Traces</span>
-                    </NavLink>
-                    <NavLink to="/api-keys" className={navLinkClass}>
-                      <span>API Keys</span>
-                    </NavLink>
+                    {/* Feedback Dropdown */}
+                    <div className="relative" ref={feedbackRef}>
+                      <button
+                        onClick={() => setFeedbackOpen(!feedbackOpen)}
+                        className={dropdownButtonClass(
+                          feedbackOpen,
+                          location.pathname.startsWith('/tour-ratings') ||
+                          location.pathname.startsWith('/top-tours')
+                        )}
+                      >
+                        <span>Feedback ▾</span>
+                      </button>
+                      {feedbackOpen && (
+                        <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                          <NavLink
+                            to="/tour-ratings"
+                            className={dropdownItemClass}
+                          >
+                            Tour Ratings
+                          </NavLink>
+                          <NavLink
+                            to="/top-tours"
+                            className={dropdownItemClass}
+                          >
+                            Top Tours
+                          </NavLink>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Admin Dropdown */}
+                    <div className="relative" ref={adminRef}>
+                      <button
+                        onClick={() => setAdminOpen(!adminOpen)}
+                        className={dropdownButtonClass(
+                          adminOpen,
+                          location.pathname.startsWith('/users') ||
+                          location.pathname.startsWith('/neighborhoods') ||
+                          location.pathname.startsWith('/cities') ||
+                          location.pathname.startsWith('/default-music') ||
+                          location.pathname.startsWith('/ai-traces') ||
+                          location.pathname.startsWith('/api-keys')
+                        )}
+                      >
+                        <span>Admin ▾</span>
+                      </button>
+                      {adminOpen && (
+                        <div className="absolute left-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50">
+                          <NavLink
+                            to="/users"
+                            className={dropdownItemClass}
+                          >
+                            Users
+                          </NavLink>
+                          <NavLink
+                            to="/neighborhoods"
+                            className={dropdownItemClass}
+                          >
+                            Neighborhoods
+                          </NavLink>
+                          <NavLink
+                            to="/cities"
+                            className={dropdownItemClass}
+                          >
+                            Cities
+                          </NavLink>
+                          <NavLink
+                            to="/default-music"
+                            className={dropdownItemClass}
+                          >
+                            Default Music
+                          </NavLink>
+                          <NavLink
+                            to="/ai-traces"
+                            className={dropdownItemClass}
+                          >
+                            AI Traces
+                          </NavLink>
+                          <NavLink
+                            to="/api-keys"
+                            className={dropdownItemClass}
+                          >
+                            API Keys
+                          </NavLink>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
+
                 <NavLink to="/profile" className={navLinkClass}>
                   <span>Profile</span>
                 </NavLink>
