@@ -124,9 +124,9 @@ def update_feedback(feedback_id):
     if not data:
         return jsonify({'error': 'No data provided'}), 400
 
-    # Track if this is the first admin interaction
+    # Track current admin
     current_user_id = int(get_jwt_identity())
-    is_first_review = feedback.reviewed_by is None
+    old_status = feedback.status
 
     # Update status
     if 'status' in data:
@@ -136,20 +136,18 @@ def update_feedback(feedback_id):
         if new_status not in valid_statuses:
             return jsonify({'error': f'Status must be one of: {", ".join(valid_statuses)}'}), 400
 
-        old_status = feedback.status
         feedback.status = new_status
 
-        # Set reviewed timestamp if changing from pending to reviewed/resolved/dismissed
+        # Set/update reviewed timestamp and reviewer when status changes from pending
         if old_status == 'pending' and new_status != 'pending':
-            if is_first_review:
-                feedback.reviewed_at = datetime.utcnow()
-                feedback.reviewed_by = current_user_id
+            feedback.reviewed_at = datetime.utcnow()
+            feedback.reviewed_by = current_user_id
 
     # Update admin notes
     if 'adminNotes' in data:
         feedback.admin_notes = data['adminNotes']
-        # If this is the first admin interaction, set reviewed timestamp
-        if is_first_review:
+        # If adding notes for the first time, set reviewed timestamp and reviewer
+        if feedback.reviewed_by is None:
             feedback.reviewed_at = datetime.utcnow()
             feedback.reviewed_by = current_user_id
 

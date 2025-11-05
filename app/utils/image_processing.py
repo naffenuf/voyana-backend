@@ -8,9 +8,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def process_hero_image(image_data: bytes, max_width: int = 1170, max_height: int = 2532, quality: int = 85) -> bytes:
+def optimize_image(image_data: bytes, max_width: int = 1170, max_height: int = 2532, quality: int = 85) -> bytes:
     """
-    Process and optimize hero images for mobile display.
+    Process and optimize images for mobile display.
 
     This function:
     - Resizes images to fit within max dimensions (maintains aspect ratio)

@@ -73,11 +73,21 @@ class Feedback(db.Model):
             if self.user:
                 result['user'] = {
                     'id': self.user.id,
-                    'name': self.user.name,
+                    'name': self.user.name or self.user.email,
                     'email': self.user.email,
                 }
             else:
                 result['user'] = None  # Anonymous
+
+            # Reviewer info
+            if self.reviewer:
+                result['reviewer'] = {
+                    'id': self.reviewer.id,
+                    'name': self.reviewer.name or self.reviewer.email,
+                    'email': self.reviewer.email,
+                }
+            else:
+                result['reviewer'] = None
 
             # Tour info
             if self.tour:

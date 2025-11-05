@@ -10,6 +10,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import limiter
 from app.services.s3_service import upload_file_to_s3
 from app.utils.device_binding import device_binding_required, get_device_id_for_rate_limit
+from app.utils.image_processing import optimize_image
 
 logger = logging.getLogger(__name__)
 
@@ -48,15 +49,24 @@ def _download_and_upload_photo_to_s3(photo_name: str, place_id: str, api_key: st
             return None
 
         photo_data = response.content
-        logger.info(f"Photo fetched successfully, size: {len(photo_data)} bytes")
+        logger.info(f"Photo fetched successfully, size: {len(photo_data)} bytes ({len(photo_data) / 1024:.2f} KB)")
+
+        # Process and optimize the image (same as uploaded images)
+        try:
+            processed_photo_data = optimize_image(photo_data)
+            logger.info(f"Image processed successfully, new size: {len(processed_photo_data)} bytes ({len(processed_photo_data) / 1024:.2f} KB)")
+            photo_data = processed_photo_data
+        except Exception as e:
+            logger.warning(f"Failed to process image, using original: {str(e)}")
+            # Continue with original photo_data if processing fails
 
         # Generate shortened filename using MD5 hash
         photo_id = photo_name.split('/')[-1]
         short_photo_id = hashlib.md5(photo_id.encode()).hexdigest()
         filename = f"{place_id}_{short_photo_id}.jpg"
 
-        # Get content type
-        content_type = response.headers.get('Content-Type', 'image/jpeg')
+        # Content type is always JPEG after processing
+        content_type = 'image/jpeg'
 
         # Create file-like object
         image_file = io.BytesIO(photo_data)
@@ -361,18 +371,24 @@ def download_and_upload_photo():
             logger.error(f"Failed to download photo: HTTP {response.status_code} - {response.text}")
             return jsonify({'error': f'Failed to download photo from Google: HTTP {response.status_code}'}), 502
 
-        # Get content type
-        content_type = response.headers.get('Content-Type', 'image/jpeg')
+        photo_data = response.content
+        logger.info(f"Photo downloaded successfully, size: {len(photo_data)} bytes ({len(photo_data) / 1024:.2f} KB)")
 
-        # Determine file extension
+        # Process and optimize the image (same as uploaded images)
+        try:
+            processed_photo_data = optimize_image(photo_data)
+            logger.info(f"Image processed successfully, new size: {len(processed_photo_data)} bytes ({len(processed_photo_data) / 1024:.2f} KB)")
+            photo_data = processed_photo_data
+        except Exception as e:
+            logger.warning(f"Failed to process image, using original: {str(e)}")
+            # Continue with original photo_data if processing fails
+
+        # Content type is always JPEG after processing
+        content_type = 'image/jpeg'
         extension = 'jpg'
-        if 'png' in content_type:
-            extension = 'png'
-        elif 'webp' in content_type:
-            extension = 'webp'
 
         # Create a file-like object from the image bytes
-        image_file = io.BytesIO(response.content)
+        image_file = io.BytesIO(photo_data)
         image_file.seek(0)
 
         # Generate filename from photo reference

@@ -8,7 +8,7 @@ from app import limiter
 from app.services.s3_service import upload_file_to_s3
 from app.services.tts_service import generate_audio
 from app.utils.admin_required import admin_required
-from app.utils.image_processing import process_hero_image, validate_image
+from app.utils.image_processing import optimize_image, validate_image
 import uuid
 import os
 
@@ -127,7 +127,7 @@ def upload_image():
             current_app.logger.info(f'Original image: {original_metadata}')
 
             # Process and optimize image
-            file_data = process_hero_image(
+            file_data = optimize_image(
                 image_data=file_data,
                 max_width=1170,
                 max_height=2532,
