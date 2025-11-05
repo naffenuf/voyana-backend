@@ -20,6 +20,7 @@ import ApiKeys from './pages/ApiKeys';
 import DefaultMusic from './pages/DefaultMusic';
 import TourRatings from './pages/TourRatings';
 import TopTours from './pages/TopTours';
+import Issues from './pages/Issues';
 
 // Create a client
 const queryClient = new QueryClient({
@@ -73,6 +74,7 @@ function AppRoutes() {
         <Route path="sites/:id" element={<SiteDetail />} />
         <Route path="heat-map" element={<HeatMap />} />
         <Route path="tour-ratings" element={<AdminRoute><TourRatings /></AdminRoute>} />
+        <Route path="issues" element={<AdminRoute><Issues /></AdminRoute>} />
         <Route path="top-tours" element={<AdminRoute><TopTours /></AdminRoute>} />
         <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
         <Route path="users/:id" element={<AdminRoute><UserDetail /></AdminRoute>} />

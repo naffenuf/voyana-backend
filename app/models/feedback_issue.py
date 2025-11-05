@@ -17,8 +17,7 @@ class FeedbackIssue(db.Model):
     description = db.Column(db.Text)  # Optional - user may only select category
     severity = db.Column(db.String(20))  # 'low', 'medium', 'high' - set by user or app
 
-    # Relationship
-    feedback = db.relationship('Feedback', backref='issue_detail', uselist=False)
+    # Relationship back to parent (defined on Feedback side)
 
     def to_dict(self):
         """Convert to dictionary."""

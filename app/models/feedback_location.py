@@ -18,8 +18,7 @@ class FeedbackLocation(db.Model):
     accuracy = db.Column(db.Float)  # Accuracy in meters (optional)
     recorded_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
 
-    # Relationship
-    feedback = db.relationship('Feedback', backref='location_detail', uselist=False)
+    # Relationship back to parent (defined on Feedback side)
 
     def to_dict(self):
         """Convert to dictionary."""

@@ -124,6 +124,10 @@ def update_feedback(feedback_id):
     if not data:
         return jsonify({'error': 'No data provided'}), 400
 
+    # Track if this is the first admin interaction
+    current_user_id = int(get_jwt_identity())
+    is_first_review = feedback.reviewed_by is None
+
     # Update status
     if 'status' in data:
         valid_statuses = ['pending', 'reviewed', 'resolved', 'dismissed']
@@ -137,12 +141,23 @@ def update_feedback(feedback_id):
 
         # Set reviewed timestamp if changing from pending to reviewed/resolved/dismissed
         if old_status == 'pending' and new_status != 'pending':
-            feedback.reviewed_at = datetime.utcnow()
-            feedback.reviewed_by = int(get_jwt_identity())
+            if is_first_review:
+                feedback.reviewed_at = datetime.utcnow()
+                feedback.reviewed_by = current_user_id
 
     # Update admin notes
     if 'adminNotes' in data:
         feedback.admin_notes = data['adminNotes']
+        # If this is the first admin interaction, set reviewed timestamp
+        if is_first_review:
+            feedback.reviewed_at = datetime.utcnow()
+            feedback.reviewed_by = current_user_id
+
+    # Update reviewed_by if provided
+    if 'reviewedBy' in data:
+        feedback.reviewed_by = data['reviewedBy']
+        if feedback.reviewed_at is None:
+            feedback.reviewed_at = datetime.utcnow()
 
     db.session.commit()
 

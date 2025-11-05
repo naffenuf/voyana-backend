@@ -40,6 +40,9 @@ class Feedback(db.Model):
     site = db.relationship('Site')
     user = db.relationship('User', foreign_keys=[user_id])
     reviewer = db.relationship('User', foreign_keys=[reviewed_by])
+    issue_detail = db.relationship('FeedbackIssue', backref='feedback', uselist=False)
+    photo_detail = db.relationship('FeedbackPhoto', backref='feedback', uselist=False)
+    location_detail = db.relationship('FeedbackLocation', backref='feedback', uselist=False)
 
     def to_dict(self, include_details=False):
         """

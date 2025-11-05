@@ -15,8 +15,7 @@ class FeedbackPhoto(db.Model):
     photo_url = db.Column(db.String(1024))  # S3 URL after admin approves and uploads
     caption = db.Column(db.Text)  # Optional user caption
 
-    # Relationship
-    feedback = db.relationship('Feedback', backref='photo_detail', uselist=False)
+    # Relationship back to parent (defined on Feedback side)
 
     def to_dict(self):
         """Convert to dictionary."""

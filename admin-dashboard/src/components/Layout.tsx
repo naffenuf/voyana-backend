@@ -97,6 +97,7 @@ export default function Layout() {
                         className={dropdownButtonClass(
                           feedbackOpen,
                           location.pathname.startsWith('/tour-ratings') ||
+                          location.pathname.startsWith('/issues') ||
                           location.pathname.startsWith('/top-tours')
                         )}
                       >
@@ -109,6 +110,12 @@ export default function Layout() {
                             className={dropdownItemClass}
                           >
                             Tour Ratings
+                          </NavLink>
+                          <NavLink
+                            to="/issues"
+                            className={dropdownItemClass}
+                          >
+                            Issues
                           </NavLink>
                           <NavLink
                             to="/top-tours"

@@ -72,7 +72,7 @@ export interface Feedback {
   tourId: string | null;
   siteId: string | null;
   userId: number | null;
-  feedbackType: 'issue' | 'rating' | 'comment' | 'suggestion';
+  feedbackType: 'issue' | 'rating' | 'comment' | 'suggestion' | 'photo' | 'location';
   rating: number | null;
   comment: string | null;
   status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
@@ -85,12 +85,50 @@ export interface Feedback {
     id: string;
     name: string;
     city?: string;
+    neighborhood?: string;
+  };
+  site?: {
+    id: string;
+    title: string;
+    latitude?: number;
+    longitude?: number;
+    imageUrl?: string;
   };
   user?: {
     id: number;
     name: string;
     email: string;
   };
+  reviewer?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+  // Type-specific details
+  issueDetail?: IssueDetail;
+  photoDetail?: PhotoDetail;
+  locationDetail?: LocationDetail;
+}
+
+export interface IssueDetail {
+  feedbackId: number;
+  title: string;
+  description: string | null;
+  severity: 'low' | 'medium' | 'high' | null;
+}
+
+export interface PhotoDetail {
+  feedbackId: number;
+  photoUrl: string | null;
+  caption: string | null;
+}
+
+export interface LocationDetail {
+  feedbackId: number;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  recordedAt: string;
 }
 
 // Auth types
