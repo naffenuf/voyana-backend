@@ -1,5 +1,5 @@
 import { useState, FormEvent, useEffect, useRef, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
@@ -19,12 +19,60 @@ function MapRecenter({ center }: { center: [number, number] }) {
   return null;
 }
 
+interface NavigationState {
+  fromTour?: string;
+  siteIndex?: number;
+  totalSites?: number;
+  siteIds?: string[];
+}
+
 export default function SiteDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { isAdmin } = useAuth();
   const isNew = id === 'new';
+
+  // Get navigation state from location, with sessionStorage fallback
+  const [navigationState, setNavigationState] = useState<NavigationState | null>(() => {
+    // First try location.state
+    if (location.state && (location.state as NavigationState).fromTour) {
+      return location.state as NavigationState;
+    }
+    // Fallback to sessionStorage
+    const stored = sessionStorage.getItem(`siteNav_${id}`);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+
+  // Persist navigation state to sessionStorage when it changes
+  useEffect(() => {
+    if (location.state && (location.state as NavigationState).fromTour) {
+      const navState = location.state as NavigationState;
+      setNavigationState(navState);
+      sessionStorage.setItem(`siteNav_${id}`, JSON.stringify(navState));
+    }
+  }, [location.state, id]);
+
+  // Cleanup sessionStorage when component unmounts
+  useEffect(() => {
+    return () => {
+      // Don't clean up immediately - allow navigation to work
+      setTimeout(() => {
+        const currentPath = window.location.pathname;
+        if (!currentPath.includes('/sites/')) {
+          sessionStorage.removeItem(`siteNav_${id}`);
+        }
+      }, 100);
+    };
+  }, [id]);
 
   const [formData, setFormData] = useState<Partial<Site>>({
     title: '',
@@ -156,12 +204,73 @@ export default function SiteDetail() {
   const handleBack = () => {
     if (hasUnsavedChanges) {
       if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
-        navigate('/sites');
+        // Navigate back to tour if coming from tour, otherwise to sites list
+        if (navigationState?.fromTour) {
+          navigate(`/tours/${navigationState.fromTour}`);
+        } else {
+          navigate('/sites');
+        }
       }
     } else {
-      navigate('/sites');
+      // Navigate back to tour if coming from tour, otherwise to sites list
+      if (navigationState?.fromTour) {
+        navigate(`/tours/${navigationState.fromTour}`);
+      } else {
+        navigate('/sites');
+      }
     }
   };
+
+  const handlePrevious = () => {
+    if (!navigationState || navigationState.siteIndex === undefined || !navigationState.siteIds) return;
+
+    if (hasUnsavedChanges) {
+      if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+        return;
+      }
+    }
+
+    const prevIndex = navigationState.siteIndex - 1;
+    if (prevIndex >= 0) {
+      const prevSiteId = navigationState.siteIds[prevIndex];
+      navigate(`/sites/${prevSiteId}`, {
+        state: {
+          fromTour: navigationState.fromTour,
+          siteIndex: prevIndex,
+          totalSites: navigationState.totalSites,
+          siteIds: navigationState.siteIds
+        }
+      });
+    }
+  };
+
+  const handleNext = () => {
+    if (!navigationState || navigationState.siteIndex === undefined || !navigationState.siteIds) return;
+
+    if (hasUnsavedChanges) {
+      if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+        return;
+      }
+    }
+
+    const nextIndex = navigationState.siteIndex + 1;
+    if (nextIndex < navigationState.siteIds.length) {
+      const nextSiteId = navigationState.siteIds[nextIndex];
+      navigate(`/sites/${nextSiteId}`, {
+        state: {
+          fromTour: navigationState.fromTour,
+          siteIndex: nextIndex,
+          totalSites: navigationState.totalSites,
+          siteIds: navigationState.siteIds
+        }
+      });
+    }
+  };
+
+  // Determine if we have previous/next navigation
+  const isFromTour = !!navigationState?.fromTour;
+  const hasPrevious = isFromTour && navigationState.siteIndex !== undefined && navigationState.siteIndex > 0;
+  const hasNext = isFromTour && navigationState.siteIndex !== undefined && navigationState.totalSites !== undefined && navigationState.siteIndex < navigationState.totalSites - 1;
 
   const handleGenerateAudio = async () => {
     if (!formData.description || !formData.description.trim()) {
@@ -253,13 +362,49 @@ export default function SiteDetail() {
             </span>
           )}
         </div>
-        <button
-          type="button"
-          onClick={handleBack}
-          className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all"
-        >
-          ← Back
-        </button>
+        <div className="flex items-center gap-2">
+          {!isFromTour ? (
+            /* Simple back button when not from tour */
+            <button
+              type="button"
+              onClick={handleBack}
+              className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 rounded-lg transition-all"
+            >
+              ← Back
+            </button>
+          ) : (
+            /* Tour navigation: always show 2 buttons + position indicator */
+            <>
+              {/* First button: "Back to Tour" on first site, "Previous" otherwise */}
+              <button
+                type="button"
+                onClick={hasPrevious ? handlePrevious : handleBack}
+                className="min-w-[140px] px-4 py-2 text-sm font-medium text-white bg-[#8B6F47] hover:bg-[#6F5838] rounded-lg transition-all md:min-w-0"
+                title={hasPrevious ? "Previous site" : "Back to tour"}
+              >
+                <span className="hidden md:inline">{hasPrevious ? '← Previous' : '← Back to Tour'}</span>
+                <span className="md:hidden">{hasPrevious ? '←' : '←←'}</span>
+              </button>
+
+              {/* Position indicator */}
+              <span className="text-sm text-gray-600">
+                {navigationState.siteIndex !== undefined && navigationState.totalSites ?
+                  `${navigationState.siteIndex + 1} of ${navigationState.totalSites}` : ''}
+              </span>
+
+              {/* Second button: "Next" on last site becomes "Back to Tour", otherwise "Next" */}
+              <button
+                type="button"
+                onClick={hasNext ? handleNext : handleBack}
+                className="min-w-[140px] px-4 py-2 text-sm font-medium text-white bg-[#8B6F47] hover:bg-[#6F5838] rounded-lg transition-all md:min-w-0"
+                title={hasNext ? "Next site" : "Back to tour"}
+              >
+                <span className="hidden md:inline">{hasNext ? 'Next →' : 'Back to Tour →'}</span>
+                <span className="md:hidden">{hasNext ? '→' : '→→'}</span>
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -614,8 +759,7 @@ export default function SiteDetail() {
 
       {/* Form Actions - Fixed Bottom */}
       <div className="fixed bottom-0 left-0 right-0 z-10 bg-[#F6EDD9]/95 backdrop-blur-lg border-t border-gray-200/50 pl-64 pr-6 py-4 shadow-lg">
-        <div className="flex justify-between items-center">
-          {/* Left side - Discard buttons */}
+        <div className="flex justify-center items-center">
           <div className="flex gap-3">
             <button
               type="button"
@@ -627,34 +771,7 @@ export default function SiteDetail() {
             </button>
             <button
               type="button"
-              onClick={handleDiscardAndClose}
-              disabled={saveMutation.isPending}
-              className="px-5 py-2.5 text-sm font-medium text-gray-700 hover:text-gray-900 bg-white hover:bg-gray-50 border border-gray-300 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Discard & Close
-            </button>
-          </div>
-
-          {/* Right side - Save buttons */}
-          <div className="flex gap-3">
-            <button
-              type="button"
               onClick={handleSaveChanges}
-              disabled={!hasUnsavedChanges || saveMutation.isPending}
-              className="px-5 py-2.5 bg-white hover:bg-gray-50 text-[#8B6F47] border-2 border-[#8B6F47] text-sm font-semibold rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {saveMutation.isPending ? (
-                <span className="flex items-center gap-2">
-                  <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-[#8B6F47]"></div>
-                  Saving...
-                </span>
-              ) : (
-                'Save Changes'
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={handleSaveAndClose}
               disabled={!hasUnsavedChanges || saveMutation.isPending}
               className="px-5 py-2.5 bg-[#8B6F47] hover:bg-[#6F5838] text-white text-sm font-semibold rounded-lg shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed"
             >
@@ -664,7 +781,7 @@ export default function SiteDetail() {
                   Saving...
                 </span>
               ) : (
-                'Save & Close'
+                'Save Changes'
               )}
             </button>
           </div>

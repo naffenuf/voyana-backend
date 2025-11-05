@@ -613,6 +613,12 @@ export default function TourDetail() {
                           </div>
                           <Link
                             to={`/sites/${site.id}`}
+                            state={{
+                              fromTour: id,
+                              siteIndex: index,
+                              totalSites: tourData.sites.length,
+                              siteIds: tourData.sites.map(s => s.id)
+                            }}
                             className="flex-1 min-w-0"
                           >
                             <div className="font-medium text-gray-900 group-hover:text-[#8B6F47] transition-colors">
