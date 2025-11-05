@@ -75,13 +75,19 @@ export function validateTour(tour: Tour | null): ValidationIssue[] {
     })
   }
 
-  // Check if tour has at least one site
+  // Check if tour has at least 3 sites (minimum for complete tour)
   const siteCount = tour.siteCount || tour.sites?.length || 0
   if (siteCount === 0) {
     issues.push({
       field: 'sites',
       label: 'Sites',
       message: 'Tour must have at least one site'
+    })
+  } else if (siteCount < 3) {
+    issues.push({
+      field: 'sites',
+      label: 'Sites',
+      message: `Tour must have at least 3 sites (currently has ${siteCount})`
     })
   }
 

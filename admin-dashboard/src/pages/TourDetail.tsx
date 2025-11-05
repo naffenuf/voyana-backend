@@ -735,12 +735,12 @@ export default function TourDetail() {
                   <select
                     value={formData.status}
                     onChange={(e) => updateField('status', e.target.value)}
-                    disabled={!isAdmin && formData.status === 'ready'}
+                    disabled={(!isAdmin && formData.status === 'ready') || (!validation.isValid && formData.status === 'draft')}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="draft">✏️ Draft</option>
-                    <option value="ready">🔍 Ready for Review</option>
-                    <option value="published">✅ Published</option>
+                    <option value="ready" disabled={!isAdmin && !validation.isValid}>🔍 Ready for Review</option>
+                    {isAdmin && <option value="published">✅ Published</option>}
                     <option value="archived">📦 Archived</option>
                   </select>
                   <div className="text-xs text-gray-500 mt-1">
@@ -753,6 +753,12 @@ export default function TourDetail() {
                     <div className="text-xs text-amber-600 mt-2 flex items-start gap-1">
                       <span>⚠️</span>
                       <span>This tour is under review and cannot be edited until published or returned to draft by an admin.</span>
+                    </div>
+                  )}
+                  {!isAdmin && !validation.isValid && formData.status === 'draft' && (
+                    <div className="text-xs text-red-600 mt-2 flex items-start gap-1">
+                      <span>⚠️</span>
+                      <span>Cannot submit for review until all validation issues are resolved.</span>
                     </div>
                   )}
                 </div>
