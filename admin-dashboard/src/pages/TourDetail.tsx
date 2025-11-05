@@ -7,9 +7,11 @@ import L from 'leaflet';
 import { toursApi, adminToursApi, sitesApi } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePresignedUrl, usePresignedUrls } from '../hooks/usePresignedUrl';
+import { useValidation } from '../hooks/useValidation';
 import FileUpload from '../components/FileUpload';
 import AddSiteWizard from '../components/AddSiteWizard';
 import RemoveSiteDialog from '../components/RemoveSiteDialog';
+import ValidationReportModal from '../components/ValidationReportModal';
 import type { Tour, Site } from '../types';
 
 export default function TourDetail() {
@@ -34,6 +36,7 @@ export default function TourDetail() {
   const [hoveredSiteId, setHoveredSiteId] = useState<string | null>(null);
   const [showAddSiteWizard, setShowAddSiteWizard] = useState(false);
   const [siteToRemove, setSiteToRemove] = useState<Site | null>(null);
+  const [showValidationReport, setShowValidationReport] = useState(false);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
   const audioRefs = useRef<(HTMLAudioElement | null)[]>([]);
@@ -78,6 +81,9 @@ export default function TourDetail() {
 
   // Get presigned URLs for music tracks (using plural hook for arrays)
   const presignedMusicUrls = usePresignedUrls(formData.musicUrls || []);
+
+  // Validation hook - checks tour and sites for required fields
+  const validation = useValidation(tourData, tourData?.sites);
 
   // Create custom map icons
   const createIcon = (number: number, isHovered: boolean) => {
@@ -815,6 +821,37 @@ export default function TourDetail() {
                 )}
               </div>
 
+              {/* Validation Status */}
+              {!isNew && tourData && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+                    Validation Status
+                  </label>
+                  <button
+                    onClick={() => setShowValidationReport(true)}
+                    className={`w-full px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                      validation.isValid
+                        ? 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
+                        : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+                    }`}
+                  >
+                    {validation.isValid ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="text-lg">✓</span>
+                        Fully Populated
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="text-lg">⚠</span>
+                        Incomplete ({validation.issueCount} issue{validation.issueCount !== 1 ? 's' : ''})
+                      </span>
+                    )}
+                  </button>
+                  <div className="text-xs text-gray-500 mt-2">
+                    Click to view detailed validation report
+                  </div>
+                </div>
+              )}
 
               {/* Owner */}
               <div>
@@ -902,6 +939,14 @@ export default function TourDetail() {
           onDeleteSite={handleDeleteSite}
         />
       )}
+
+      {/* Validation Report Modal */}
+      <ValidationReportModal
+        isOpen={showValidationReport}
+        onClose={() => setShowValidationReport(false)}
+        validation={validation}
+        tourId={id}
+      />
     </div>
   );
 }

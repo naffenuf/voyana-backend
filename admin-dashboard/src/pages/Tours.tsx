@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useAuth } from '../lib/auth';
 import { toursApi, adminToursApi } from '../lib/api';
+import { getValidationSummary } from '../lib/validation';
 import type { Tour } from '../types';
 
 // Helper function to get status display info
@@ -23,21 +24,33 @@ export default function Tours() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [cityFilter, setCityFilter] = useState('');
+  const [page, setPage] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
+  const toursPerPage = 20;
 
   // Use admin API if user is admin, otherwise regular API
   const { data, isLoading } = useQuery({
-    queryKey: ['tours', search, statusFilter, cityFilter, isAdmin],
+    queryKey: ['tours', search, statusFilter, cityFilter, page, isAdmin],
     queryFn: () => {
       const filters = {
         search: search || undefined,
         status: statusFilter || undefined,
         city: cityFilter || undefined,
-        limit: 50,
+        include_sites: 'true', // Include full site data for validation
+        limit: toursPerPage,
+        offset: (page - 1) * toursPerPage,
       };
       return isAdmin ? adminToursApi.list(filters) : toursApi.list(filters);
     },
   });
+
+  // Reset to page 1 when filters change
+  const handleFilterChange = (setter: (value: string) => void) => (value: string) => {
+    setter(value);
+    setPage(1);
+  };
+
+  const totalPages = data?.total ? Math.ceil(data.total / toursPerPage) : 0;
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => toursApi.delete(id),
@@ -143,12 +156,12 @@ export default function Tours() {
             type="text"
             placeholder="Search tours..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => handleFilterChange(setSearch)(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#944F2E] focus:border-transparent"
           />
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => handleFilterChange(setStatusFilter)(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#944F2E] focus:border-transparent"
           >
             <option value="">All Statuses</option>
@@ -161,7 +174,7 @@ export default function Tours() {
             type="text"
             placeholder="Filter by city..."
             value={cityFilter}
-            onChange={(e) => setCityFilter(e.target.value)}
+            onChange={(e) => handleFilterChange(setCityFilter)(e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#944F2E] focus:border-transparent"
           />
         </div>
@@ -219,6 +232,22 @@ export default function Tours() {
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
+                      {/* Validation Badge */}
+                      {(() => {
+                        const validation = getValidationSummary(tour, tour.sites || []);
+                        return validation.isValid ? (
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-50 text-green-700 border border-green-200 flex items-center gap-1">
+                            <span>✓</span>
+                            Fully Populated
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                            <span>⚠</span>
+                            Incomplete
+                          </span>
+                        );
+                      })()}
+                      {/* Status Badge */}
                       {(() => {
                         const statusDisplay = getStatusDisplay(tour.status);
                         return (
@@ -252,6 +281,34 @@ export default function Tours() {
               >
                 Create Tour
               </Link>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {data?.tours && data.tours.length > 0 && totalPages > 1 && (
+            <div className="flex items-center justify-between bg-white p-4 rounded-lg border border-gray-200">
+              <div className="text-sm text-gray-600">
+                Showing {(page - 1) * toursPerPage + 1} to {Math.min(page * toursPerPage, data.total || 0)} of {data.total || 0}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={page === 1}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Previous
+                </button>
+                <span className="px-4 py-2 text-sm font-medium text-gray-700">
+                  Page {page} of {totalPages}
+                </span>
+                <button
+                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                  disabled={page === totalPages}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
