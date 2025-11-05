@@ -184,13 +184,6 @@ def get_tour(tour_id):
     # Get tour data
     tour_data = tour.to_dict()
 
-    # If tour has no music URLs, use default music tracks
-    if not tour_data.get('musicUrls'):
-        from app.models.default_music import DefaultMusicTrack
-        default_tracks = DefaultMusicTrack.query.filter_by(is_active=True).order_by(DefaultMusicTrack.display_order).all()
-        if default_tracks:
-            tour_data['musicUrls'] = [track.url for track in default_tracks]
-
     return jsonify({'tour': tour_data}), 200
 
 
