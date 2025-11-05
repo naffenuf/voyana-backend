@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth } from './lib/auth';
 import Layout from './components/Layout';
 import AdminRoute from './components/AdminRoute';
+import { ScrollRestoration } from './components/ScrollRestoration';
 import Login from './pages/Login';
 import Tours from './pages/Tours';
 import TourDetail from './pages/TourDetail';
@@ -95,6 +96,7 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <BrowserRouter>
+          <ScrollRestoration />
           <AppRoutes />
           <Toaster
             position="top-right"
