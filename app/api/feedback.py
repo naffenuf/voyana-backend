@@ -62,6 +62,14 @@ def submit_feedback():
             "recordedAt": "ISO timestamp" (optional)
         }
 
+    Suggestion:
+        {
+            "feedbackType": "suggestion",
+            "tourId": "uuid-string",
+            "siteId": "uuid-string" (required),
+            "comment": "User-provided details or improvements for site description"
+        }
+
     Returns:
         {
             "message": "Feedback submitted successfully",
@@ -76,7 +84,7 @@ def submit_feedback():
 
     # Get feedback type
     feedback_type = data.get('feedbackType', 'rating')  # Default to rating for backward compat
-    if feedback_type not in ['rating', 'issue', 'photo', 'location']:
+    if feedback_type not in ['rating', 'issue', 'photo', 'location', 'suggestion']:
         return jsonify({'error': f'Invalid feedbackType: {feedback_type}'}), 400
 
     # tourId is required for all types
@@ -118,6 +126,8 @@ def submit_feedback():
             return _handle_photo_feedback(data, tour_id, site_id, user_id, site)
         elif feedback_type == 'location':
             return _handle_location_feedback(data, tour_id, site_id, user_id, site)
+        elif feedback_type == 'suggestion':
+            return _handle_suggestion_feedback(data, tour_id, site_id, user_id, site)
 
     except ValueError as e:
         db.session.rollback()
@@ -337,5 +347,38 @@ def _handle_location_feedback(data, tour_id, site_id, user_id, site):
 
     return jsonify({
         'message': 'Location data submitted successfully',
+        'feedbackId': feedback.id
+    }), 201
+
+
+def _handle_suggestion_feedback(data, tour_id, site_id, user_id, site):
+    """Handle suggestion feedback submission (site details/description improvements)."""
+    if not site_id:
+        raise ValueError('siteId is required for suggestion feedback')
+
+    if 'comment' not in data:
+        raise ValueError('comment is required for suggestion feedback')
+
+    comment = data['comment']
+
+    # Validate comment is not empty
+    if not comment or comment.strip() == '':
+        raise ValueError('comment cannot be empty')
+
+    # Create feedback record
+    feedback = Feedback(
+        tour_id=tour_id,
+        site_id=site_id,
+        user_id=user_id,
+        feedback_type='suggestion',
+        comment=comment,  # Store suggestion text in comment field
+        status='pending'
+    )
+
+    db.session.add(feedback)
+    db.session.commit()
+
+    return jsonify({
+        'message': 'Suggestion submitted successfully',
         'feedbackId': feedback.id
     }), 201
