@@ -48,7 +48,11 @@ def submit_feedback():
             "tourId": "uuid-string",
             "siteId": "uuid-string" (required),
             "photoData": "base64-encoded-image",
-            "caption": "Optional description"
+            "caption": "Optional description",
+            "latitude": 40.7589 (optional),
+            "longitude": -73.9851 (optional),
+            "accuracy": 10.5 (optional),
+            "recordedAt": "ISO timestamp" (optional)
         }
 
     Location:
@@ -253,10 +257,43 @@ def _handle_photo_feedback(data, tour_id, site_id, user_id, site):
 
     photo_data = data['photoData']
     caption = data.get('caption')
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    accuracy = data.get('accuracy')
+    recorded_at_str = data.get('recordedAt')
 
     # Strip empty strings to None
     if caption and caption.strip() == '':
         caption = None
+
+    # Validate coordinates if provided
+    if latitude is not None or longitude is not None:
+        # If one is provided, both must be provided
+        if latitude is None or longitude is None:
+            raise ValueError('Both latitude and longitude must be provided together')
+
+        # Validate types
+        if not isinstance(latitude, (int, float)) or not isinstance(longitude, (int, float)):
+            raise ValueError('latitude and longitude must be numbers')
+
+        # Validate ranges
+        if latitude < -90 or latitude > 90:
+            raise ValueError('latitude must be between -90 and 90')
+
+        if longitude < -180 or longitude > 180:
+            raise ValueError('longitude must be between -180 and 180')
+
+    # Validate accuracy if provided
+    if accuracy is not None and (not isinstance(accuracy, (int, float)) or accuracy <= 0):
+        raise ValueError('accuracy must be a positive number')
+
+    # Parse timestamp if provided
+    recorded_at = None
+    if recorded_at_str:
+        try:
+            recorded_at = datetime.fromisoformat(recorded_at_str.replace('Z', '+00:00'))
+        except ValueError:
+            raise ValueError('Invalid recordedAt timestamp format')
 
     # Create feedback record
     feedback = Feedback(
@@ -274,7 +311,11 @@ def _handle_photo_feedback(data, tour_id, site_id, user_id, site):
     # Create photo detail
     photo_detail = FeedbackPhoto(
         feedback_id=feedback.id,
-        caption=caption
+        caption=caption,
+        latitude=latitude,
+        longitude=longitude,
+        accuracy=accuracy,
+        recorded_at=recorded_at
         # photo_url will be set when admin approves
     )
 

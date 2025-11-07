@@ -116,7 +116,17 @@ def create_app(config_name='development'):
     migrate.init_app(app, db)
     jwt.init_app(app)
     limiter.init_app(app)
-    CORS(app)
+
+    # Configure CORS to allow frontend access
+    CORS(app, resources={
+        r"/*": {
+            "origins": ["http://localhost:5173", "http://localhost:3000"],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": True,
+            "max_age": 3600
+        }
+    })
 
     # Register JWT callbacks for device validation
     register_jwt_callbacks(app)

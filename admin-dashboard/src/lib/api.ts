@@ -325,6 +325,76 @@ export const adminFeedbackApi = {
   },
 };
 
+// Admin Photo Submissions API
+export const adminPhotoSubmissionsApi = {
+  list: async (filters?: FeedbackFilters) => {
+    const response = await api.get<{ photos: Feedback[]; total: number; limit: number; offset: number }>(
+      '/api/admin/photo-submissions',
+      { params: filters }
+    );
+    return response.data;
+  },
+
+  get: async (id: number) => {
+    const response = await api.get<{ photo: Feedback }>(`/api/admin/photo-submissions/${id}`);
+    return response.data.photo;
+  },
+
+  update: async (id: number, data: { status?: string; adminNotes?: string }) => {
+    const response = await api.put<{ photo: Feedback }>(`/api/admin/photo-submissions/${id}`, data);
+    return response.data.photo;
+  },
+
+  approve: async (id: number, options: { replaceImage?: boolean; updateLocation?: boolean }) => {
+    const response = await api.post<{ photo: Feedback; site: any }>(
+      `/api/admin/photo-submissions/${id}/approve`,
+      options
+    );
+    return response.data;
+  },
+
+  delete: async (id: number) => {
+    await api.delete(`/api/admin/photo-submissions/${id}`);
+  },
+};
+
+// Admin Location Data API
+export const adminLocationDataApi = {
+  list: async (filters?: FeedbackFilters) => {
+    const response = await api.get<{ locations: Feedback[]; total: number; limit: number; offset: number }>(
+      '/api/admin/location-data',
+      { params: filters }
+    );
+    return response.data;
+  },
+
+  get: async (id: number) => {
+    const response = await api.get<{ location: Feedback }>(`/api/admin/location-data/${id}`);
+    return response.data.location;
+  },
+
+  update: async (id: number, data: { status?: string; adminNotes?: string }) => {
+    const response = await api.put<{ location: Feedback }>(`/api/admin/location-data/${id}`, data);
+    return response.data.location;
+  },
+
+  approve: async (id: number) => {
+    const response = await api.post<{ location: Feedback; site: any }>(
+      `/api/admin/location-data/${id}/approve`
+    );
+    return response.data;
+  },
+
+  delete: async (id: number) => {
+    await api.delete(`/api/admin/location-data/${id}`);
+  },
+
+  getStats: async () => {
+    const response = await api.get<any>('/api/admin/location-data/stats');
+    return response.data;
+  },
+};
+
 // Media API
 export const mediaApi = {
   getPresignedUrl: async (url: string): Promise<string> => {

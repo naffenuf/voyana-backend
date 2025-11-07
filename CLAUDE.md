@@ -363,6 +363,34 @@ The feedback system supports five types of user-submitted feedback:
 - Photo validation happens at API layer (to be implemented)
 - Photo decoding/saving to S3 happens during admin approval (to be implemented)
 
+### Database Design Architecture
+
+**IMPORTANT: Hybrid Design Pattern**
+
+The feedback system uses a pragmatic hybrid approach for data storage:
+
+**Main `feedback` Table:**
+- Contains common fields for ALL feedback types (id, tour_id, site_id, user_id, status, timestamps, etc.)
+- Contains simple type-specific fields directly: `rating` (integer), `comment` (text), `photo_data` (text)
+- One record per feedback submission
+
+**Separate Detail Tables (for complex types only):**
+- `feedback_photos` - Photo metadata (photo_url, caption, latitude, longitude, accuracy, recorded_at)
+- `feedback_locations` - Location data (latitude, longitude, accuracy, recorded_at)
+- `feedback_issues` - Issue details (title, description, severity)
+
+**Design Rationale:**
+- **Simple types** (ratings, suggestions) have 1-2 fields → stored directly in main table
+- **Complex types** (photos, locations, issues) have multiple related fields → use detail tables
+- This is **intentional**, not a bug or oversight
+- Balances simplicity (fewer joins for common queries) with organization (grouping related fields)
+
+**When NOT to Refactor:**
+- This design is working as intended
+- The "inconsistency" is a justified architectural choice
+- Do NOT refactor to "pure" consistency unless it causes actual problems
+- Common database pattern for polymorphic associations with varying complexity
+
 ## Testing
 
 ### Writing Tests

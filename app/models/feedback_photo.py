@@ -1,6 +1,7 @@
 """
 Feedback photo model.
 """
+from datetime import datetime
 from app import db
 
 
@@ -15,6 +16,12 @@ class FeedbackPhoto(db.Model):
     photo_url = db.Column(db.String(1024))  # S3 URL after admin approves and uploads
     caption = db.Column(db.Text)  # Optional user caption
 
+    # Location where photo was taken
+    latitude = db.Column(db.Float)  # Optional latitude
+    longitude = db.Column(db.Float)  # Optional longitude
+    accuracy = db.Column(db.Float)  # Optional accuracy in meters
+    recorded_at = db.Column(db.DateTime)  # Optional timestamp when photo was taken
+
     # Relationship back to parent (defined on Feedback side)
 
     def to_dict(self):
@@ -23,6 +30,10 @@ class FeedbackPhoto(db.Model):
             'feedbackId': self.feedback_id,
             'photoUrl': self.photo_url,
             'caption': self.caption,
+            'latitude': self.latitude,
+            'longitude': self.longitude,
+            'accuracy': self.accuracy,
+            'recordedAt': self.recorded_at.isoformat() if self.recorded_at else None,
         }
 
     def __repr__(self):

@@ -4,10 +4,14 @@ Admin API endpoints for photo submission feedback management.
 from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from datetime import datetime
+import base64
+import uuid
+from io import BytesIO
 from app import db
 from app.models.feedback import Feedback
 from app.models.feedback_photo import FeedbackPhoto
 from app.models.site import Site
+from app.services.s3_service import upload_file_to_s3
 from app.utils.admin_required import admin_required
 
 admin_photo_submissions_bp = Blueprint('admin_photo_submissions', __name__)
@@ -163,15 +167,17 @@ def approve_photo_submission(feedback_id):
     Approve a photo submission and replace site's image (admin only).
 
     This endpoint will:
-    1. Upload the photo_data to S3
-    2. Update the site's image_url
-    3. Store S3 URL in photo_detail.photo_url
-    4. Clear photo_data from feedback table
-    5. Mark feedback as resolved
+    1. Decode Base64 photo data
+    2. Upload the photo to S3
+    3. Update the site's image_url (if replaceImage is true)
+    4. Store S3 URL in photo_detail.photo_url
+    5. Clear photo_data from feedback table
+    6. Mark feedback as resolved
 
     Request body:
         {
-            "replaceImage": true  # If true, replace site's main image
+            "replaceImage": true,  # If true, replace site's main image
+            "updateLocation": false  # If true, update site's location with photo location
         }
 
     Returns:
@@ -179,8 +185,6 @@ def approve_photo_submission(feedback_id):
             "photo": {...},
             "site": {...}
         }
-
-    Note: S3 upload service will be implemented in Phase 5
     """
     feedback = Feedback.query.get(feedback_id)
 
@@ -195,17 +199,106 @@ def approve_photo_submission(feedback_id):
 
     data = request.get_json() or {}
     replace_image = data.get('replaceImage', True)
+    update_location = data.get('updateLocation', False)
 
     # Get site
     site = Site.query.get(feedback.site_id)
     if not site:
         return jsonify({'error': 'Associated site not found'}), 404
 
-    # TODO: Phase 5 - Implement S3 upload service
-    # For now, return error indicating this is not yet implemented
-    return jsonify({
-        'error': 'Photo approval with S3 upload not yet implemented. This will be added in Phase 5.'
-    }), 501  # Not Implemented
+    try:
+        # Decode Base64 photo data
+        # Handle data URL format (e.g., "data:image/jpeg;base64,/9j/4AAQ...")
+        photo_data_str = feedback.photo_data
+        if ',' in photo_data_str and 'base64' in photo_data_str:
+            # Extract just the base64 part after the comma
+            photo_data_str = photo_data_str.split(',', 1)[1]
+
+        # Decode base64 to bytes
+        photo_bytes = base64.b64decode(photo_data_str)
+
+        # Generate unique filename
+        file_name = f"user-submitted-{site.id}-{uuid.uuid4()}.jpg"
+
+        # Upload to S3 in 'site-photos' folder
+        s3_url = upload_file_to_s3(
+            file_data=BytesIO(photo_bytes),
+            file_name=file_name,
+            folder='site-photos',
+            content_type='image/jpeg'
+        )
+
+        if not s3_url:
+            current_app.logger.error(f'Failed to upload photo to S3 for feedback {feedback_id}')
+            return jsonify({'error': 'Failed to upload photo to S3'}), 500
+
+        current_app.logger.info(f'Uploaded photo to S3: {s3_url}')
+
+        # Update site's image_url if requested
+        if replace_image:
+            old_image_url = site.image_url
+            site.image_url = s3_url
+            current_app.logger.info(f'Replaced site {site.id} image: {old_image_url} -> {s3_url}')
+
+        # Update site's location if requested and photo has location data
+        if update_location and feedback.photo_detail:
+            photo_detail = feedback.photo_detail
+            if photo_detail.latitude is not None and photo_detail.longitude is not None:
+                old_location = (site.latitude, site.longitude)
+                site.latitude = photo_detail.latitude
+                site.longitude = photo_detail.longitude
+                current_app.logger.info(f'Updated site {site.id} location: {old_location} -> ({site.latitude}, {site.longitude})')
+
+        # Get or create photo detail record
+        photo_detail = feedback.photo_detail
+        if not photo_detail:
+            photo_detail = FeedbackPhoto(feedback_id=feedback.id)
+            db.session.add(photo_detail)
+
+        # Store S3 URL in photo detail
+        photo_detail.photo_url = s3_url
+
+        # Clear Base64 data from feedback (no longer needed, saves DB space)
+        feedback.photo_data = None
+
+        # Mark feedback as resolved
+        feedback.status = 'resolved'
+        feedback.reviewed_at = datetime.utcnow()
+        feedback.reviewed_by = int(get_jwt_identity())
+
+        # Add admin note about what was done
+        actions = []
+        if replace_image:
+            actions.append('replaced site image')
+        if update_location:
+            actions.append('updated site location')
+        if not actions:
+            actions.append('saved to S3')
+
+        approval_note = f"Photo approved and {', '.join(actions)}."
+        if feedback.admin_notes:
+            feedback.admin_notes = f"{feedback.admin_notes}\n\n{approval_note}"
+        else:
+            feedback.admin_notes = approval_note
+
+        # Commit all changes
+        db.session.commit()
+
+        current_app.logger.info(f'Approved photo submission {feedback_id}: {approval_note}')
+
+        return jsonify({
+            'photo': feedback.to_dict(include_details=True),
+            'site': site.to_dict()
+        }), 200
+
+    except base64.binascii.Error as e:
+        current_app.logger.error(f'Invalid Base64 data for feedback {feedback_id}: {e}')
+        db.session.rollback()
+        return jsonify({'error': 'Invalid Base64 photo data'}), 400
+    except Exception as e:
+        current_app.logger.error(f'Error approving photo submission {feedback_id}: {e}')
+        db.session.rollback()
+        return jsonify({'error': f'Failed to approve photo: {str(e)}'}), 500
 
 
 @admin_photo_submissions_bp.route('/<int:feedback_id>', methods=['DELETE'])
