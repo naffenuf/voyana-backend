@@ -40,9 +40,9 @@ class Feedback(db.Model):
     site = db.relationship('Site')
     user = db.relationship('User', foreign_keys=[user_id])
     reviewer = db.relationship('User', foreign_keys=[reviewed_by])
-    issue_detail = db.relationship('FeedbackIssue', backref='feedback', uselist=False)
-    photo_detail = db.relationship('FeedbackPhoto', backref='feedback', uselist=False)
-    location_detail = db.relationship('FeedbackLocation', backref='feedback', uselist=False)
+    issue_detail = db.relationship('FeedbackIssue', backref='feedback', uselist=False, cascade='all, delete-orphan')
+    photo_detail = db.relationship('FeedbackPhoto', backref='feedback', uselist=False, cascade='all, delete-orphan')
+    location_detail = db.relationship('FeedbackLocation', backref='feedback', uselist=False, cascade='all, delete-orphan')
 
     def to_dict(self, include_details=False):
         """
@@ -108,6 +108,7 @@ class Feedback(db.Model):
                     'latitude': self.site.latitude,
                     'longitude': self.site.longitude,
                     'imageUrl': self.site.image_url,
+                    'description': self.site.description,
                 }
             else:
                 result['site'] = None

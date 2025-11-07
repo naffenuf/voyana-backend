@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MessageSquare, MapPin, User, Calendar, FileText, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { adminFeedbackApi } from '../../lib/api';
+import { adminFeedbackApi, sitesApi } from '../../lib/api';
 import type { Feedback } from '../../types';
 
 interface CommentFeedbackCardProps {
@@ -14,20 +14,56 @@ interface CommentFeedbackCardProps {
 export default function CommentFeedbackCard({ feedback, onDelete }: CommentFeedbackCardProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const site = feedback.site;
   const [adminNotes, setAdminNotes] = useState(feedback.adminNotes || '');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
+  const [siteDescription, setSiteDescription] = useState(site?.description || '');
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
+  const descriptionTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea when editing description
+  useEffect(() => {
+    if (isEditingDescription && descriptionTextareaRef.current) {
+      const textarea = descriptionTextareaRef.current;
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.max(textarea.scrollHeight, 150)}px`;
+    }
+  }, [isEditingDescription, siteDescription]);
+
+  const handleDescriptionChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setSiteDescription(e.target.value);
+    // Auto-resize as user types
+    const textarea = e.target;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${Math.max(textarea.scrollHeight, 150)}px`;
+  };
 
   // Update mutation (status and notes)
   const updateMutation = useMutation({
     mutationFn: (data: { status?: string; adminNotes?: string }) =>
       adminFeedbackApi.update(feedback.id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comment-feedback'] });
-      toast.success('Comment updated');
+      queryClient.invalidateQueries({ queryKey: ['suggestion-feedback'] });
+      toast.success('Feedback updated');
       setIsEditingNotes(false);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to update');
+    },
+  });
+
+  // Update site description mutation
+  const updateSiteDescriptionMutation = useMutation({
+    mutationFn: (description: string) =>
+      sitesApi.update(feedback.siteId!, { description }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['suggestion-feedback'] });
+      queryClient.invalidateQueries({ queryKey: ['sites'] });
+      toast.success('Site description updated');
+      setIsEditingDescription(false);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to update description');
     },
   });
 
@@ -39,7 +75,9 @@ export default function CommentFeedbackCard({ feedback, onDelete }: CommentFeedb
     updateMutation.mutate({ adminNotes });
   };
 
-  const site = feedback.site;
+  const handleSaveDescription = () => {
+    updateSiteDescriptionMutation.mutate(siteDescription);
+  };
 
   const statusColors = {
     pending: 'bg-yellow-100 text-yellow-800',
@@ -58,7 +96,7 @@ export default function CommentFeedbackCard({ feedback, onDelete }: CommentFeedb
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-900">Comment Feedback</h3>
+              <h3 className="font-semibold text-gray-900">Add Details</h3>
               <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[feedback.status as keyof typeof statusColors]}`}>
                 {feedback.status}
               </span>
@@ -125,21 +163,67 @@ export default function CommentFeedbackCard({ feedback, onDelete }: CommentFeedb
         </div>
       )}
 
-      {/* User Comment */}
+      {/* User Details */}
       <div className="mb-4">
-        <div className="text-sm font-medium text-gray-700 mb-2">User Comment</div>
+        <div className="text-sm font-medium text-gray-700 mb-2">User Feedback</div>
         <div className="p-4 bg-gray-50 rounded-lg">
-          <p className="text-gray-700 whitespace-pre-wrap">{feedback.comment || <span className="text-gray-400 italic">No comment provided</span>}</p>
+          <p className="text-gray-700 whitespace-pre-wrap">{feedback.comment || <span className="text-gray-400 italic">No details provided</span>}</p>
         </div>
       </div>
 
-      {/* Site Description (for context) */}
-      {site && site.description && (
+      {/* Editable Site Description */}
+      {site && (
         <div className="mb-4">
-          <div className="text-sm font-medium text-gray-700 mb-2">Current Site Description</div>
-          <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
-            <p className="text-gray-700 text-sm whitespace-pre-wrap">{site.description}</p>
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-sm font-medium text-gray-700">Site Description</div>
+            {!isEditingDescription && (
+              <button
+                onClick={() => setIsEditingDescription(true)}
+                className="text-sm text-[#8B6F47] hover:underline"
+              >
+                Edit
+              </button>
+            )}
           </div>
+
+          {isEditingDescription ? (
+            <div className="space-y-2">
+              <textarea
+                ref={descriptionTextareaRef}
+                value={siteDescription}
+                onChange={handleDescriptionChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#8B6F47] focus:border-[#8B6F47] resize-none overflow-hidden"
+                style={{ minHeight: '150px' }}
+                placeholder="Enter site description..."
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSaveDescription}
+                  disabled={updateSiteDescriptionMutation.isPending}
+                  className="px-4 py-2 bg-[#8B6F47] text-white rounded-lg hover:bg-[#6B5437] font-medium transition-colors disabled:opacity-50"
+                >
+                  {updateSiteDescriptionMutation.isPending ? 'Saving...' : 'Save Description'}
+                </button>
+                <button
+                  onClick={() => {
+                    setSiteDescription(feedback.site?.description || '');
+                    setIsEditingDescription(false);
+                  }}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-100">
+              {siteDescription ? (
+                <p className="text-gray-700 text-sm whitespace-pre-wrap">{siteDescription}</p>
+              ) : (
+                <p className="text-gray-400 italic text-sm">No description yet</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

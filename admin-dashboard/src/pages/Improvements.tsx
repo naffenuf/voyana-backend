@@ -43,18 +43,18 @@ export default function Improvements() {
     enabled: !typeFilter || typeFilter === 'location',
   });
 
-  // Fetch comment feedback
+  // Fetch suggestion feedback (Add Details)
   const { data: commentsData, isLoading: commentsLoading } = useQuery({
-    queryKey: ['comment-feedback', statusFilter, siteFilter, tourFilter],
+    queryKey: ['suggestion-feedback', statusFilter, siteFilter, tourFilter],
     queryFn: () =>
       adminFeedbackApi.list({
-        feedback_type: 'comment',
+        feedback_type: 'suggestion',
         status: statusFilter || undefined,
         site_id: siteFilter || undefined,
         tour_id: tourFilter || undefined,
         limit: 500,
       }),
-    enabled: !typeFilter || typeFilter === 'comment',
+    enabled: !typeFilter || typeFilter === 'suggestion',
   });
 
   // Fetch tours for filter dropdown
@@ -101,7 +101,7 @@ export default function Improvements() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['photo-submissions'] });
       queryClient.invalidateQueries({ queryKey: ['location-submissions'] });
-      queryClient.invalidateQueries({ queryKey: ['comment-feedback'] });
+      queryClient.invalidateQueries({ queryKey: ['suggestion-feedback'] });
       toast.success('Improvement deleted successfully');
     },
     onError: (error: any) => {
@@ -114,6 +114,16 @@ export default function Improvements() {
     setStatusFilter('pending');
     setSiteFilter('');
     setTourFilter('');
+  };
+
+  const handleDelete = (id: number, type: string) => {
+    const confirmed = window.confirm(
+      'Are you sure you want to permanently delete this feedback? This cannot be undone.'
+    );
+
+    if (confirmed) {
+      deleteMutation.mutate({ id, type });
+    }
   };
 
   return (
@@ -148,7 +158,7 @@ export default function Improvements() {
               <option value="">All Types</option>
               <option value="photo">Photo Submissions</option>
               <option value="location">Location Corrections</option>
-              <option value="comment">Comments</option>
+              <option value="suggestion">Add Details</option>
             </select>
           </div>
 
@@ -248,7 +258,7 @@ export default function Improvements() {
                 <PhotoFeedbackCard
                   key={`photo-${improvement.id}`}
                   feedback={improvement}
-                  onDelete={() => deleteMutation.mutate({ id: improvement.id, type: 'photo' })}
+                  onDelete={() => handleDelete(improvement.id, 'photo')}
                 />
               );
             } else if (improvement.feedbackType === 'location') {
@@ -256,15 +266,15 @@ export default function Improvements() {
                 <LocationFeedbackCard
                   key={`location-${improvement.id}`}
                   feedback={improvement}
-                  onDelete={() => deleteMutation.mutate({ id: improvement.id, type: 'location' })}
+                  onDelete={() => handleDelete(improvement.id, 'location')}
                 />
               );
-            } else if (improvement.feedbackType === 'comment') {
+            } else if (improvement.feedbackType === 'suggestion') {
               return (
                 <CommentFeedbackCard
-                  key={`comment-${improvement.id}`}
+                  key={`suggestion-${improvement.id}`}
                   feedback={improvement}
-                  onDelete={() => deleteMutation.mutate({ id: improvement.id, type: 'comment' })}
+                  onDelete={() => handleDelete(improvement.id, 'suggestion')}
                 />
               );
             }
