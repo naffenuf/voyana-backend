@@ -148,6 +148,14 @@ export function validateSite(site: Site): ValidationIssue[] {
     })
   }
 
+  if (!site.neighborhood?.trim()) {
+    issues.push({
+      field: 'neighborhood',
+      label: 'Neighborhood',
+      message: 'Neighborhood is required'
+    })
+  }
+
   if (!site.imageUrl?.trim()) {
     issues.push({
       field: 'imageUrl',
