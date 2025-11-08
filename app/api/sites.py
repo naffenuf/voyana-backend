@@ -328,8 +328,9 @@ def delete_site(site_id):
     if not site:
         return jsonify({'error': 'Site not found'}), 404
 
-    # Check if site is used in any tours
-    tour_count = len(site.tour_sites)
+    # Check if site is used in any tours and collect them for metric recalculation
+    affected_tours = [tour_site.tour for tour_site in site.tour_sites]
+    tour_count = len(affected_tours)
 
     # Collect S3 URLs to delete
     s3_urls_to_delete = []
@@ -345,9 +346,30 @@ def delete_site(site_id):
 
     site_title = site.title
 
-    # Delete the site from database
+    # Delete the site from database (CASCADE will delete tour_sites relationships)
     db.session.delete(site)
     db.session.commit()
+
+    # Recalculate metrics for all affected tours
+    from app.services.tour_calculator import calculate_tour_metrics
+    for tour in affected_tours:
+        # Refresh the tour to get updated tour_sites after CASCADE delete
+        db.session.expire(tour, ['tour_sites'])
+        db.session.refresh(tour)
+
+        # Recalculate distance/duration
+        distance_meters, duration_minutes = calculate_tour_metrics(tour)
+        tour.distance_meters = distance_meters
+        tour.duration_minutes = duration_minutes
+
+        current_app.logger.info(
+            f'Recalculated metrics for tour {tour.id} after site deletion: '
+            f'{distance_meters:.1f}m, {duration_minutes}min'
+        )
+
+    # Commit tour metric updates
+    if affected_tours:
+        db.session.commit()
 
     # Delete S3 files
     from app.services.s3_service import delete_file_from_s3

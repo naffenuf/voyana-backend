@@ -9,6 +9,7 @@ from app.models.tour import Tour
 from app.models.site import Site
 from app.models.user import User
 from app.services.tts_service import generate_audio
+from app.services.tour_calculator import calculate_tour_metrics
 from app.utils.device_binding import device_binding_required, get_device_id_for_rate_limit
 import math
 import time
@@ -343,6 +344,27 @@ def update_tour(tour_id):
             db.session.add(tour_site)
 
         current_app.logger.info(f'Updated sites for tour {tour.id}: {len(site_ids)} sites')
+
+        # Auto-calculate tour metrics based on updated sites
+        # Flush to ensure tour_sites relationships are available
+        db.session.flush()
+
+        # Expire the tour_sites relationship to force fresh reload from database
+        # This ensures we get the updated tour_sites after delete/recreate operations
+        db.session.expire(tour, ['tour_sites'])
+
+        # Refresh the tour.sites relationship to get updated data
+        db.session.refresh(tour)
+
+        # Calculate and update distance/duration
+        distance_meters, duration_minutes = calculate_tour_metrics(tour)
+        tour.distance_meters = distance_meters
+        tour.duration_minutes = duration_minutes
+
+        current_app.logger.info(
+            f'Auto-calculated metrics for tour {tour.id}: '
+            f'{distance_meters:.1f}m, {duration_minutes}min'
+        )
 
     db.session.commit()
 

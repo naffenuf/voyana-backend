@@ -10,6 +10,7 @@ import math
 from app import db, limiter
 from app.models.tour import Tour, TourSite
 from app.models.site import Site
+from app.services.tour_calculator import calculate_tour_metrics
 from app.utils.admin_required import admin_required
 from app.utils.flexible_auth import flexible_auth_required
 
@@ -356,6 +357,22 @@ def bulk_upload_tours():
                     )
                     db.session.add(tour_site)
                     added_site_ids.add(site.id)  # Mark this site as added
+
+                # Auto-calculate tour metrics based on imported sites
+                # This overrides any durationMinutes/distanceMeters from import data
+                db.session.flush()  # Ensure tour_sites relationships are saved
+                db.session.expire(tour, ['tour_sites'])  # Force fresh reload from database
+                db.session.refresh(tour)  # Refresh to get updated sites relationship
+
+                # Calculate and update distance/duration
+                distance_meters, duration_minutes = calculate_tour_metrics(tour)
+                tour.distance_meters = distance_meters
+                tour.duration_minutes = duration_minutes
+
+                current_app.logger.info(
+                    f'Auto-calculated metrics for tour {tour.name}: '
+                    f'{distance_meters:.1f}m, {duration_minutes}min'
+                )
 
                 # Commit this tour
                 db.session.commit()

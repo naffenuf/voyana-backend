@@ -262,7 +262,7 @@ def create_city():
             longitude=data['longitude'],
             hero_image_url=data.get('heroImageUrl'),
             hero_title=data.get('heroTitle'),
-            hero_subtitle=data.get('heroSubtitle'),
+            hero_subtitle=data.get('heroSubtitle', 'Self-Guided Audio Walking Tours'),
             country=data.get('country'),
             state_province=data.get('stateProvince'),
             timezone=data.get('timezone'),
