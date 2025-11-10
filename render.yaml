@@ -1,14 +1,12 @@
-services:
-  # PostgreSQL Database
-  - type: postgres
-    name: voyana-db
+databases:
+  - name: voyana-db
     region: virginia
     plan: starter
     databaseName: voyana_db
-    databaseUser: voyana
+    user: voyana
     ipAllowList: []
 
-  # Flask API Server
+services:
   - type: web
     name: voyana-api
     region: virginia
