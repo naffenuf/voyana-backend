@@ -75,6 +75,7 @@ export interface Feedback {
   feedbackType: 'issue' | 'rating' | 'comment' | 'suggestion' | 'photo' | 'location';
   rating: number | null;
   comment: string | null;
+  photoData: string | null;
   status: 'pending' | 'reviewed' | 'resolved' | 'dismissed';
   adminNotes: string | null;
   createdAt: string;
@@ -86,10 +87,12 @@ export interface Feedback {
     name: string;
     city?: string;
     neighborhood?: string;
+    description?: string;
   };
   site?: {
     id: string;
     title: string;
+    description?: string;
     latitude?: number;
     longitude?: number;
     imageUrl?: string;
@@ -121,6 +124,8 @@ export interface PhotoDetail {
   feedbackId: number;
   photoUrl: string | null;
   caption: string | null;
+  latitude: number | null;
+  longitude: number | null;
 }
 
 export interface LocationDetail {

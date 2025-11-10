@@ -96,7 +96,7 @@ export default function LocationFeedbackCard({ feedback, onDelete }: LocationFee
   };
 
   const distance = site && locationDetail && site.latitude !== undefined && site.longitude !== undefined
-    ? calculateDistance(site.latitude, site.longitude, locationDetail.latitude, locationDetail.longitude)
+    ? calculateDistance(site.latitude!, site.longitude!, locationDetail.latitude, locationDetail.longitude)
     : null;
 
   return (
@@ -198,12 +198,12 @@ export default function LocationFeedbackCard({ feedback, onDelete }: LocationFee
             <div className="text-sm font-medium text-gray-700">
               Current Site Location
               <div className="text-xs text-gray-500 font-normal">
-                {site.latitude.toFixed(6)}, {site.longitude.toFixed(6)}
+                {site.latitude!.toFixed(6)}, {site.longitude!.toFixed(6)}
               </div>
             </div>
             <div className="h-64 rounded-lg overflow-hidden border border-gray-200">
               <MapContainer
-                center={[site.latitude, site.longitude]}
+                center={[site.latitude!, site.longitude!]}
                 zoom={17}
                 style={{ height: '100%', width: '100%' }}
                 zoomControl={true}

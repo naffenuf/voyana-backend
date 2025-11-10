@@ -1,4 +1,5 @@
 import { useState, FormEvent } from 'react';
+import type { FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
