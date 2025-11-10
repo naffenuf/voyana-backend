@@ -1,6 +1,6 @@
 services:
   # PostgreSQL Database
-  - type: pgsql
+  - type: postgres
     name: voyana-db
     region: virginia
     plan: starter
