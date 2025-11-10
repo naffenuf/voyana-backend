@@ -32,6 +32,12 @@ instance/
 .env.local
 .env.*.local
 
+# Secrets (NEVER commit secrets.json!)
+secrets.json
+
+# Database backups
+backups/
+
 # IDEs
 .vscode/
 .idea/
@@ -60,9 +66,6 @@ logs/
 
 # Seed data copy (tracked in iOS app, not here)
 app/all_tours.json
-
-# Docker
-.dockerignore
 
 # Alembic
 alembic/versions/*.pyc

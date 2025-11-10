@@ -225,18 +225,57 @@ def register_blueprints(app):
         import os
         import json
 
+        # Production: return voyanatours.com
+        if app.config.get('ENV') == 'production':
+            return jsonify({
+                'api_base_url': 'https://voyanatours.com',
+                'environment': 'production'
+            }), 200
+
+        # Development: read from local config file (contains ngrok URL)
         config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'remote-config.json')
 
         try:
             with open(config_path, 'r') as f:
                 config_data = json.load(f)
+            config_data['environment'] = 'development'
             return jsonify(config_data), 200
         except FileNotFoundError:
-            app.logger.error(f"Config file not found at: {config_path}")
-            return jsonify({'error': 'Config file not found'}), 404
+            # Fallback if config file doesn't exist
+            app.logger.warning(f"Config file not found at: {config_path}, using fallback")
+            return jsonify({
+                'api_base_url': 'http://localhost:5000',
+                'environment': 'development'
+            }), 200
         except Exception as e:
             app.logger.error(f"Error reading remote-config.json: {e}")
             return jsonify({'error': 'Error reading config', 'details': str(e)}), 500
+
+    # Marketing site - serve static files (must be AFTER API routes)
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve_marketing_site(path):
+        """
+        Serve marketing site static files.
+
+        This catch-all route serves the marketing site from the marketing-site/ directory.
+        It's registered AFTER all API routes so it doesn't interfere with them.
+        """
+        import os
+        from flask import send_from_directory
+
+        marketing_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'marketing-site')
+
+        # If path is empty, serve index.html
+        if not path:
+            return send_from_directory(marketing_dir, 'index.html')
+
+        # Try to serve the requested file
+        try:
+            return send_from_directory(marketing_dir, path)
+        except:
+            # If file not found, serve index.html (for SPA routing)
+            return send_from_directory(marketing_dir, 'index.html')
 
     # Text-to-speech endpoint (legacy compatibility - iOS expects it at /api/text-to-audio)
     @app.route('/api/text-to-audio', methods=['POST'])

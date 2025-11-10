@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voyana - Walking Tours in Brooklyn</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="font-inter bg-gray-50 text-gray-900">
+  <!-- Header -->
+  <header class="fixed top-0 w-full shadow-sm z-10" style="background-color: #F6ECD8;">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-[120px] flex justify-between items-center">
+      <img src="images/VoyanaLogoOriginal@0.5x.png" alt="Voyana Logo" class="h-[120px] w-[120px] object-contain" />
+      <nav class="space-x-6 flex items-center ml-auto">
+        <a href="#features" class="text-gray-600 hover:text-gray-900">Features</a>
+        <a href="#download" class="text-gray-600 hover:text-gray-900">Download</a>
+        <a href="#contact" class="text-gray-600 hover:text-gray-900">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section with Background Image -->
+  <section class="min-h-screen flex items-center justify-center bg-cover bg-center" style="background-image: url('images/IMG_1661.jpg');">
+    <div class="relative max-w-2xl mx-auto px-6 py-10 text-center text-white backdrop-blur-sm" style="background: linear-gradient(to bottom, rgba(0,0,0,0.18), rgba(0,0,0,0));">
+      <h1 class="text-4xl sm:text-5xl font-bold mb-6">Explore Brooklyn with Voyana</h1>
+      <p class="text-lg sm:text-xl mb-8 max-w-2xl mx-auto">
+        Discover Williamsburg and Greenpoint with free GPS-guided walking tours. From historic landmarks to vintage shops, experience Brooklyn’s coolest neighborhoods like a local.
+      </p>
+      <a href="#download" class="inline-block bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition">
+        Download Voyana Now
+      </a>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="py-16 bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <h2 class="text-3xl font-bold text-center mb-12">Why Choose Voyana?</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-8">
+        <div class="text-center">
+          <div class="text-4xl mb-4">🗺️</div>
+          <h3 class="text-xl font-semibold mb-2">GPS-Guided Tours</h3>
+          <p class="text-gray-600">Seamlessly navigate Williamsburg and Greenpoint with precise, real-time directions.</p>
+        </div>
+        <div class="text-center">
+          <div class="text-4xl mb-4">📍</div>
+          <h3 class="text-xl font-semibold mb-2">Curated Points of Interest</h3>
+          <p class="text-gray-600">Explore hidden gems, historic sites, and trendy spots handpicked by locals.</p>
+        </div>
+        <div class="text-center">
+          <div class="text-4xl mb-4">🎉</div>
+          <h3 class="text-xl font-semibold mb-2">Totally Free Tours</h3>
+          <p class="text-gray-600">Access all Voyana walking tours for free—no registration, no paywalls, just pure exploration!</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Download Section -->
+  <section id="download" class="py-16 bg-gray-100">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <h2 class="text-3xl font-bold mb-6">Get Voyana on Your iPhone</h2>
+      <p class="text-lg text-gray-600 mb-8 max-w-xl mx-auto">
+        Download Voyana for free on the App Store and start exploring Brooklyn today.
+      </p>
+      <a href="https://apps.apple.com/app/id6746415395/" target="_blank" class="inline-block">
+        <img src="images/download.png" alt="Download on the App Store" class="h-14 mx-auto">
+      </a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer id="contact" class="py-8 bg-gray-800 text-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+      <p class="mb-4">© 2025 Voyana. All rights reserved.</p>
+      <div class="space-x-4">
+        <a href="mailto:info@voyanatours.com" class="hover:text-gray-300">Contact Us</a>
+        <a href="privacy.html" class="hover:text-gray-300">Privacy Policy</a>
+        <a href="terms.html" class="hover:text-gray-300">Terms of Service</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // Smooth scrolling for nav links
+    document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+      anchor.addEventListener('click', function(e) {
+        e.preventDefault();
+        document.querySelector(this.getAttribute('href')).scrollIntoView({
+          behavior: 'smooth'
+        });
+      });
+    });
+  </script>
+</body>
+</html>

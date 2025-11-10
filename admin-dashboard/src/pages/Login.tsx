@@ -26,11 +26,6 @@ export default function Login() {
     }
   };
 
-  const quickLogin = (email: string, password: string) => {
-    setEmail(email);
-    setPassword(password);
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
@@ -63,7 +58,7 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-white"
-                placeholder="admin@test.com"
+                placeholder="you@example.com"
               />
             </div>
 
@@ -102,27 +97,6 @@ export default function Login() {
               )}
             </button>
           </form>
-
-          {/* Quick Login Options */}
-          <div className="pt-4 border-t border-gray-200">
-            <p className="text-xs text-gray-600 mb-3 text-center">Quick login for testing:</p>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => quickLogin('admin@test.com', 'admin1234')}
-                className="px-3 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg text-xs font-medium transition-colors border border-purple-200"
-              >
-                ⭐ Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => quickLogin('creator@test.com', 'test1234')}
-                className="px-3 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-medium transition-colors border border-blue-200"
-              >
-                ✏️ Creator
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Footer */}
