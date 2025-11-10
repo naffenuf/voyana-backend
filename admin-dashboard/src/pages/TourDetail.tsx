@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import { toursApi, adminToursApi, sitesApi } from '../lib/api';
+import { toursApi, sitesApi } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { usePresignedUrl, usePresignedUrls } from '../hooks/usePresignedUrl';
 import { useValidation } from '../hooks/useValidation';
@@ -481,7 +481,7 @@ export default function TourDetail() {
                                 )}
                               </button>
                               <audio
-                                ref={(el) => (audioRefs.current[index] = el)}
+                                ref={(el) => { audioRefs.current[index] = el; }}
                                 src={presignedMusicUrls[index] || url}
                                 crossOrigin="anonymous"
                                 preload="metadata"
@@ -623,8 +623,8 @@ export default function TourDetail() {
                             state={{
                               fromTour: id,
                               siteIndex: index,
-                              totalSites: tourData.sites.length,
-                              siteIds: tourData.sites.map(s => s.id)
+                              totalSites: tourData.sites?.length || 0,
+                              siteIds: tourData.sites?.map(s => s.id) || []
                             }}
                             className="flex-1 min-w-0"
                           >
@@ -818,7 +818,7 @@ export default function TourDetail() {
                 )}
 
                 {/* View Feedback button (admin only) */}
-                {isAdmin && tourData?.ratingCount > 0 && (
+                {isAdmin && tourData?.ratingCount !== undefined && tourData.ratingCount > 0 && (
                   <Link
                     to={`/tour-ratings?tourId=${id}`}
                     className="mt-2 inline-flex items-center px-3 py-1 text-sm font-medium text-[#8B6F47] bg-[#F6EDD9] hover:bg-[#8B6F47] hover:text-white rounded-lg transition-colors"
@@ -952,7 +952,6 @@ export default function TourDetail() {
         isOpen={showValidationReport}
         onClose={() => setShowValidationReport(false)}
         validation={validation}
-        tourId={id}
       />
     </div>
   );

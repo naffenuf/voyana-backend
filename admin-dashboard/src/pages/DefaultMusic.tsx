@@ -40,8 +40,18 @@ export default function DefaultMusic() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Partial<DefaultMusicTrack> }) =>
-      defaultMusicApi.update(id, data),
+    mutationFn: ({ id, data }: { id: string; data: Partial<DefaultMusicTrack> }) => {
+      // Filter out null values and convert to API-compatible type
+      const cleanedData: {
+        url?: string;
+        title?: string;
+        displayOrder?: number;
+        isActive?: boolean;
+      } = Object.fromEntries(
+        Object.entries(data).filter(([_, v]) => v !== null)
+      );
+      return defaultMusicApi.update(id, cleanedData);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['defaultMusic'] });
       toast.success('Track updated successfully');
@@ -267,7 +277,7 @@ export default function DefaultMusic() {
                     )}
                   </button>
                   <audio
-                    ref={(el) => (audioRefs.current[index] = el)}
+                    ref={(el) => { audioRefs.current[index] = el; }}
                     src={presignedUrls[index] || track.url}
                     crossOrigin="anonymous"
                     preload="metadata"

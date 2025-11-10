@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { adminToursApi } from '../lib/api';
 import StarRating from '../components/StarRating';
-import type { Tour } from '../types';
 
 export default function TopTours() {
   const [minRatings, setMinRatings] = useState<number>(0);
@@ -120,7 +119,7 @@ export default function TopTours() {
           >
             <option value="">All cities</option>
             {cities.map((city) => (
-              <option key={city} value={city}>
+              <option key={city || ''} value={city || ''}>
                 {city}
               </option>
             ))}

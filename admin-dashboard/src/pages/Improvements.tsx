@@ -3,7 +3,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { adminPhotoSubmissionsApi, adminLocationDataApi, adminFeedbackApi, toursApi, sitesApi } from '../lib/api';
 import { Filter, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
-import type { Feedback } from '../types';
 import PhotoFeedbackCard from '../components/improvements/PhotoFeedbackCard';
 import LocationFeedbackCard from '../components/improvements/LocationFeedbackCard';
 import CommentFeedbackCard from '../components/improvements/CommentFeedbackCard';

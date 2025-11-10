@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
-import { Camera, MapPin, Check, X, User, Calendar, FileText, Trash2, Maximize2 } from 'lucide-react';
+import { Camera, MapPin, Check, X, User, Calendar, FileText, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminPhotoSubmissionsApi, sitesApi, mediaApi } from '../../lib/api';
 import type { Feedback } from '../../types';
@@ -113,7 +113,7 @@ export default function PhotoFeedbackCard({ feedback, onDelete }: PhotoFeedbackC
   const approveMutation = useMutation({
     mutationFn: (options: { replaceImage: boolean; updateLocation: boolean }) =>
       adminPhotoSubmissionsApi.approve(feedback.id, options),
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['photo-submissions'] });
       queryClient.invalidateQueries({ queryKey: ['sites-list'] });
       toast.success('Photo approved and processed');
@@ -288,7 +288,7 @@ export default function PhotoFeedbackCard({ feedback, onDelete }: PhotoFeedbackC
         {/* Maps Row */}
         <div className="grid grid-cols-2 gap-4 mb-4">
           {/* Site Location Map */}
-          {site && (
+          {site && site.latitude !== undefined && site.longitude !== undefined && (
             <div className="space-y-2">
               <div className="text-sm font-medium text-gray-700">Current Site Location</div>
               <div className="aspect-square rounded-lg overflow-hidden border border-gray-200 relative z-0">

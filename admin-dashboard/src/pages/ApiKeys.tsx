@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Key, Plus, Copy, Check, Trash2, Power, PowerOff, AlertTriangle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApiKeysApi, adminUsersApi } from '../lib/api';
-import type { ApiKey, User } from '../types';
+import type { ApiKey } from '../types';
 
 export default function ApiKeys() {
   const queryClient = useQueryClient();
@@ -85,11 +85,6 @@ export default function ApiKeys() {
     setCopiedKeyId(keyId);
     toast.success('API key copied to clipboard');
     setTimeout(() => setCopiedKeyId(null), 2000);
-  };
-
-  const maskKey = (key: string) => {
-    if (key.length <= 8) return key;
-    return `${key.substring(0, 8)}${'*'.repeat(key.length - 12)}${key.substring(key.length - 4)}`;
   };
 
   return (

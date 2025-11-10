@@ -4,8 +4,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import type { LeafletMouseEvent } from 'leaflet';
-import { useAuth } from '../lib/auth';
+import type { DragEndEvent } from 'leaflet';
 import { sitesApi, uploadApi, adminAiApi } from '../lib/api';
 import { usePresignedUrl, usePresignedUrls } from '../hooks/usePresignedUrl';
 import FileUpload from '../components/FileUpload';
@@ -32,7 +31,6 @@ export default function SiteDetail() {
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
-  const { isAdmin } = useAuth();
   const isNew = id === 'new';
 
   // Get navigation state from location, with sessionStorage fallback
@@ -161,18 +159,6 @@ export default function SiteDetail() {
     saveMutation.mutate(formData);
   };
 
-  const handleSaveAndClose = () => {
-    if (!formData.title || formData.latitude === undefined || formData.longitude === undefined) {
-      toast.error('Title, latitude, and longitude are required');
-      return;
-    }
-    saveMutation.mutate(formData, {
-      onSuccess: () => {
-        navigate('/sites');
-      },
-    });
-  };
-
   const handleDiscardChanges = () => {
     if (originalData) {
       setFormData(originalData);
@@ -196,10 +182,6 @@ export default function SiteDetail() {
       setHasUnsavedChanges(false);
       toast.success('Changes discarded');
     }
-  };
-
-  const handleDiscardAndClose = () => {
-    navigate('/sites');
   };
 
   const handleBack = () => {
@@ -321,7 +303,7 @@ export default function SiteDetail() {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleMarkerDragEnd = (event: LeafletMouseEvent) => {
+  const handleMarkerDragEnd = (event: DragEndEvent) => {
     const { lat, lng } = event.target.getLatLng();
     setFormData((prev) => ({
       ...prev,

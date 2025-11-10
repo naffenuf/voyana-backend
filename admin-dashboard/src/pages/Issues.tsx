@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { adminFeedbackApi, adminUsersApi } from '../lib/api';
@@ -117,7 +117,7 @@ export default function Issues() {
     updateMutation.mutate({ id: issueId, data: { status: newStatus } });
   };
 
-  const handleSeverityChange = (issue: Feedback, newSeverity: string) => {
+  const handleSeverityChange = (_issue: Feedback, _newSeverity: string) => {
     // TODO: Backend doesn't support updating severity yet
     // This would need a new endpoint: PUT /api/admin/feedback/:id/severity
     toast.error('Severity update not yet implemented in backend');

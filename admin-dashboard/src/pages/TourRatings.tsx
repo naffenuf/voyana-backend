@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
 import { adminFeedbackApi } from '../lib/api';
 import StarRating from '../components/StarRating';
-import type { Feedback } from '../types';
 
 export default function TourRatings() {
   const [searchParams] = useSearchParams();

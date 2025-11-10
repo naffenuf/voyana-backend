@@ -19,7 +19,7 @@ function getStatusDisplay(status: string) {
 }
 
 export default function Tours() {
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
