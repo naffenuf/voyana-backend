@@ -12,7 +12,7 @@ services:
   - type: web
     name: voyana-api
     region: virginia
-    plan: starter
+    plan: standard
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
