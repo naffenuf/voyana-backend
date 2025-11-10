@@ -1,7 +1,7 @@
 databases:
   - name: voyana-db
     region: virginia
-    plan: starter
+    plan: basic-1gb
     databaseName: voyana_db
     user: voyana
     ipAllowList: []
