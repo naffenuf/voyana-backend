@@ -6,14 +6,12 @@ interface ValidationReportModalProps {
   isOpen: boolean
   onClose: () => void
   validation: ValidationSummary
-  tourId?: string
 }
 
 export default function ValidationReportModal({
   isOpen,
   onClose,
   validation,
-  tourId,
 }: ValidationReportModalProps) {
   if (!isOpen) return null
 

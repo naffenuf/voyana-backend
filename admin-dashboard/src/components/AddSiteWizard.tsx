@@ -1,6 +1,5 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
-import { LatLng } from 'leaflet';
 import { X, MapPin, Search, ImageIcon, FileText, Loader2, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { placesApi, sitesApi, toursApi, adminAiApi } from '../lib/api';

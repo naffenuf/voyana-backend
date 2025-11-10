@@ -17,7 +17,7 @@ export default function CommentFeedbackCard({ feedback, onDelete }: CommentFeedb
   const site = feedback.site;
   const [adminNotes, setAdminNotes] = useState(feedback.adminNotes || '');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
-  const [siteDescription, setSiteDescription] = useState(site?.description || '');
+  const [siteDescription, setSiteDescription] = useState('');
   const [isEditingDescription, setIsEditingDescription] = useState(false);
   const descriptionTextareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -206,7 +206,7 @@ export default function CommentFeedbackCard({ feedback, onDelete }: CommentFeedb
                 </button>
                 <button
                   onClick={() => {
-                    setSiteDescription(feedback.site?.description || '');
+                    setSiteDescription('');
                     setIsEditingDescription(false);
                   }}
                   className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium transition-colors"

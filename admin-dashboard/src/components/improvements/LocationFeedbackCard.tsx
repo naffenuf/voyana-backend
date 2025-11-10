@@ -95,7 +95,7 @@ export default function LocationFeedbackCard({ feedback, onDelete }: LocationFee
     return R * c;
   };
 
-  const distance = site && locationDetail
+  const distance = site && locationDetail && site.latitude !== undefined && site.longitude !== undefined
     ? calculateDistance(site.latitude, site.longitude, locationDetail.latitude, locationDetail.longitude)
     : null;
 
@@ -193,7 +193,7 @@ export default function LocationFeedbackCard({ feedback, onDelete }: LocationFee
       {/* Maps Row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
         {/* Current Site Location Map */}
-        {site && (
+        {site && site.latitude !== undefined && site.longitude !== undefined && (
           <div className="space-y-2">
             <div className="text-sm font-medium text-gray-700">
               Current Site Location
