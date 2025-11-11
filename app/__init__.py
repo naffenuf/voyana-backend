@@ -118,9 +118,11 @@ def create_app(config_name='development'):
     limiter.init_app(app)
 
     # Configure CORS to allow frontend access
+    # Get CORS origins from environment variable or use defaults
+    cors_origins = os.getenv('CORS_ORIGINS', 'http://localhost:5173,http://localhost:3000').split(',')
     CORS(app, resources={
         r"/*": {
-            "origins": ["http://localhost:5173", "http://localhost:3000"],
+            "origins": cors_origins,
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
             "allow_headers": ["Content-Type", "Authorization"],
             "supports_credentials": True,
