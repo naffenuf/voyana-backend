@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { MapContainer, TileLayer, Circle, Tooltip, Marker, Popup, useMapEvents, useMap, ZoomControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Circle, Tooltip, Marker, useMapEvents, useMap, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet.heat';
 import { adminToursApi, toursApi } from '../lib/api';
@@ -143,7 +143,7 @@ export default function HeatMap() {
   const [showFilters, setShowFilters] = useState(false);
   const [hoveredTourId, setHoveredTourId] = useState<string | null>(null);
   const [hoveredSiteId, setHoveredSiteId] = useState<string | null>(null);
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mapBounds, setMapBounds] = useState<{
     minLat: number;
     maxLat: number;
@@ -520,7 +520,7 @@ export default function HeatMap() {
                   )}
 
                   {/* Site markers */}
-                  {hoveredTour.sites.map((site, index) => (
+                  {hoveredTour.sites.map((site) => (
                     <Marker
                       key={site.id}
                       position={[site.latitude, site.longitude]}
