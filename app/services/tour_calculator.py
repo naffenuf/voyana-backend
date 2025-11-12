@@ -80,7 +80,7 @@ def calculate_tour_metrics(tour) -> Tuple[float, int]:
 
     Returns:
         Tuple of (distance_meters, duration_minutes)
-        - distance_meters: Total walking distance in meters (float)
+        - distance_meters: Total walking distance in meters (int, rounded)
         - duration_minutes: Total estimated duration in minutes (int, rounded up)
     """
     # Get sites ordered by display_order from tour_sites relationship
@@ -120,4 +120,7 @@ def calculate_tour_metrics(tour) -> Tuple[float, int]:
     # Total duration (rounded up to nearest minute)
     total_minutes = math.ceil(walking_minutes + narration_minutes)
 
-    return (adjusted_distance, total_minutes)
+    # Round distance to nearest integer (sub-meter precision not needed for tours)
+    distance_meters = round(adjusted_distance)
+
+    return (distance_meters, total_minutes)

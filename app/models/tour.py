@@ -81,7 +81,7 @@ class Tour(db.Model):
             'mapImageUrl': self.map_image_url,
             'musicUrls': self.music_urls,
             'durationMinutes': self.duration_minutes,
-            'distanceMeters': self.distance_meters,
+            'distanceMeters': int(round(self.distance_meters)) if self.distance_meters is not None else None,
             'averageRating': self.average_rating,
             'ratingCount': self.rating_count,
             'calculatedRating': self.get_calculated_rating(),
