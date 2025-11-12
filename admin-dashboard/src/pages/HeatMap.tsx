@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { MapContainer, TileLayer, Circle, Tooltip, Marker, Popup, useMapEvents, useMap, ZoomControl } from 'react-leaflet';
@@ -142,6 +142,8 @@ export default function HeatMap() {
   const isAdmin = user?.role === 'admin';
   const [showFilters, setShowFilters] = useState(false);
   const [hoveredTourId, setHoveredTourId] = useState<string | null>(null);
+  const [hoveredSiteId, setHoveredSiteId] = useState<string | null>(null);
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [mapBounds, setMapBounds] = useState<{
     minLat: number;
     maxLat: number;
@@ -409,13 +411,25 @@ export default function HeatMap() {
                   radius={tour.calculatedRadius}
                   pathOptions={{
                     fillColor: '#8B6F47',
-                    fillOpacity: hoveredTourId === tour.id ? 0.2 : 0.08,
+                    fillOpacity: hoveredTourId === tour.id ? 0.3 : 0.15,
                     color: hoveredTourId === tour.id ? '#944F2E' : '#8B6F47',
                     weight: hoveredTourId === tour.id ? 2 : 1,
                   }}
                   eventHandlers={{
-                    mouseover: () => setHoveredTourId(tour.id),
-                    mouseout: () => setHoveredTourId(null),
+                    mouseover: () => {
+                      if (hoverTimeoutRef.current) {
+                        clearTimeout(hoverTimeoutRef.current);
+                      }
+                      setHoveredTourId(tour.id);
+                      setHoveredSiteId(null);
+                    },
+                    mouseout: () => {
+                      // Delay clearing to allow child markers to capture hover
+                      hoverTimeoutRef.current = setTimeout(() => {
+                        setHoveredTourId(null);
+                        setHoveredSiteId(null);
+                      }, 50);
+                    },
                     click: () => navigate(`/tours/${tour.id}`),
                   }}
                 >
@@ -439,34 +453,38 @@ export default function HeatMap() {
               const hoveredTour = visibleTours.find(t => t.id === hoveredTourId);
               if (!hoveredTour || !hoveredTour.sites) return null;
 
-              // Create custom icon for site markers
-              const siteIcon = L.divIcon({
-                className: 'custom-site-marker',
-                html: `<div style="
-                  width: 12px;
-                  height: 12px;
-                  background-color: #EF4444;
-                  border: 2px solid white;
-                  border-radius: 50%;
-                  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-                "></div>`,
-                iconSize: [12, 12],
-                iconAnchor: [6, 6],
-              });
+              // Create custom icon for site markers - function to get icon based on hover state
+              const getSiteIcon = (siteId: string) => {
+                const isHovered = hoveredSiteId === siteId;
+                return L.divIcon({
+                  className: 'custom-site-marker',
+                  html: `<div style="
+                    width: ${isHovered ? '16px' : '12px'};
+                    height: ${isHovered ? '16px' : '12px'};
+                    background-color: #EF4444;
+                    border: 2px solid white;
+                    border-radius: 50%;
+                    box-shadow: 0 2px ${isHovered ? '6px' : '4px'} rgba(0,0,0,${isHovered ? '0.5' : '0.3'});
+                  "></div>`,
+                  iconSize: [isHovered ? 16 : 12, isHovered ? 16 : 12],
+                  iconAnchor: [isHovered ? 8 : 6, isHovered ? 8 : 6],
+                });
+              };
 
               // Create icon for tour center
+              const isHoveredCenter = hoveredSiteId === 'center';
               const centerIcon = L.divIcon({
                 className: 'custom-center-marker',
                 html: `<div style="
-                  width: 16px;
-                  height: 16px;
+                  width: ${isHoveredCenter ? '20px' : '16px'};
+                  height: ${isHoveredCenter ? '20px' : '16px'};
                   background-color: #8B6F47;
                   border: 3px solid white;
                   border-radius: 50%;
-                  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+                  box-shadow: 0 2px ${isHoveredCenter ? '8px' : '6px'} rgba(0,0,0,${isHoveredCenter ? '0.5' : '0.4'});
                 "></div>`,
-                iconSize: [16, 16],
-                iconAnchor: [8, 8],
+                iconSize: [isHoveredCenter ? 20 : 16, isHoveredCenter ? 20 : 16],
+                iconAnchor: [isHoveredCenter ? 10 : 8, isHoveredCenter ? 10 : 8],
               });
 
               return (
@@ -476,15 +494,28 @@ export default function HeatMap() {
                     <Marker
                       position={hoveredTour.calculatedCenter}
                       icon={centerIcon}
+                      eventHandlers={{
+                        mouseover: () => {
+                          if (hoverTimeoutRef.current) {
+                            clearTimeout(hoverTimeoutRef.current);
+                          }
+                          setHoveredTourId(hoveredTourId);
+                          setHoveredSiteId('center');
+                        },
+                        mouseout: () => {
+                          // Only clear site hover, let tour handle full clear
+                          setHoveredSiteId(null);
+                        }
+                      }}
                     >
-                      <Popup>
-                        <div className="text-sm">
-                          <strong>Tour Center (Calculated)</strong>
+                      <Tooltip direction="top" offset={[0, -10]} opacity={0.75}>
+                        <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.85)' }}>
+                          <strong className="font-semibold">Tour Center</strong>
                           <div className="text-xs text-gray-600 mt-1">
                             {hoveredTour.name}
                           </div>
                         </div>
-                      </Popup>
+                      </Tooltip>
                     </Marker>
                   )}
 
@@ -493,18 +524,31 @@ export default function HeatMap() {
                     <Marker
                       key={site.id}
                       position={[site.latitude, site.longitude]}
-                      icon={siteIcon}
+                      icon={getSiteIcon(site.id)}
+                      eventHandlers={{
+                        mouseover: () => {
+                          if (hoverTimeoutRef.current) {
+                            clearTimeout(hoverTimeoutRef.current);
+                          }
+                          setHoveredTourId(hoveredTourId);
+                          setHoveredSiteId(site.id);
+                        },
+                        mouseout: () => {
+                          // Only clear site hover, let tour handle full clear
+                          setHoveredSiteId(null);
+                        }
+                      }}
                     >
-                      <Popup>
-                        <div className="text-sm">
-                          <strong>Site {index + 1}: {site.title}</strong>
-                          {site.description && (
-                            <div className="text-xs text-gray-600 mt-1 max-w-xs">
-                              {site.description.slice(0, 100)}...
+                      <Tooltip direction="top" offset={[0, -10]} opacity={0.75}>
+                        <div style={{ backgroundColor: 'rgba(255, 255, 255, 0.85)' }}>
+                          <strong className="font-semibold">{site.title}</strong>
+                          {site.formatted_address && (
+                            <div className="text-xs text-gray-600 mt-1">
+                              {site.formatted_address.split(',')[0]}
                             </div>
                           )}
                         </div>
-                      </Popup>
+                      </Tooltip>
                     </Marker>
                   ))}
                 </>
@@ -513,42 +557,6 @@ export default function HeatMap() {
           </MapContainer>
         )}
       </div>
-
-      {/* Legend */}
-      {!isLoading && toursWithRadius.length > 0 && (
-        <div className="absolute bottom-6 left-6 z-[1000] bg-white rounded-xl shadow-lg border border-gray-200 p-4">
-          <h4 className="font-semibold text-gray-900 mb-3 text-sm">Legend</h4>
-          <div className="space-y-2 text-sm">
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-red-500"></div>
-              <span className="text-gray-700">High tour density</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-yellow-500"></div>
-              <span className="text-gray-700">Medium tour density</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-blue-500"></div>
-              <span className="text-gray-700">Low tour density</span>
-            </div>
-            <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
-              <div className="w-4 h-4 rounded-full bg-[#8B6F47] opacity-30"></div>
-              <span className="text-gray-700">Tour coverage area</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-red-500 border-2 border-white"></div>
-              <span className="text-gray-700">Individual sites (on hover)</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-[#8B6F47] border-2 border-white"></div>
-              <span className="text-gray-700">Tour center (on hover)</span>
-            </div>
-            <div className="text-xs text-gray-500 pt-2 border-t border-gray-200">
-              Hover over a tour to see its sites. Click to open.
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
