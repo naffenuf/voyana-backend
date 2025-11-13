@@ -9,6 +9,7 @@ from app.services.s3_service import upload_file_to_s3
 from app.services.tts_service import generate_audio
 from app.utils.admin_required import admin_required
 from app.utils.image_processing import optimize_image, validate_image
+from app.utils.rate_limiting import get_user_audio_limit, get_audio_rate_limit_key
 import uuid
 import os
 
@@ -246,7 +247,7 @@ def upload_audio():
 @admin_upload_bp.route('/generate-audio', methods=['POST'])
 @jwt_required()
 @admin_required()
-@limiter.limit("10 per hour", key_func=lambda: f"generate_audio_{get_jwt_identity()}")
+@limiter.limit(get_user_audio_limit, key_func=get_audio_rate_limit_key)
 def generate_tts_audio():
     """
     Generate audio from text using TTS and upload to S3 (admin only).

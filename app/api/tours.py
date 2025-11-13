@@ -11,6 +11,7 @@ from app.models.user import User
 from app.services.tts_service import generate_audio
 from app.services.tour_calculator import calculate_tour_metrics
 from app.utils.device_binding import device_binding_required, get_device_id_for_rate_limit
+from app.utils.rate_limiting import get_user_audio_limit, get_audio_rate_limit_key
 import math
 import time
 
@@ -608,7 +609,7 @@ def nearby_tours():
 
 @tours_bp.route('/<uuid:tour_id>/generate-audio-for-sites', methods=['POST'])
 @device_binding_required()
-@limiter.limit("5 per hour", key_func=lambda: f"generate_audio_batch_{get_jwt_identity()}")
+@limiter.limit(get_user_audio_limit, key_func=get_audio_rate_limit_key)
 def generate_audio_for_tour_sites(tour_id):
     """
     Generate audio for all sites in a tour that don't already have audio URLs.
