@@ -2,7 +2,7 @@
 Flask==3.0.0
 Flask-SQLAlchemy==3.1.1
 Flask-Migrate==4.0.5
-Flask-CORS==4.0.0
+Flask-CORS==6.0.0
 
 # Authentication
 Flask-JWT-Extended==4.6.0
@@ -26,7 +26,7 @@ elevenlabs==0.2.26
 googlemaps==4.10.0
 
 # HTTP & Validation
-requests==2.31.0
+requests==2.32.4
 marshmallow==3.20.1
 email-validator==2.1.0
 
