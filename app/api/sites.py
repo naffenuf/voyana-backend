@@ -93,18 +93,18 @@ def list_sites():
     # Get total count
     total = query.count()
 
-    # Execute query with pagination
-    sites = query.limit(limit).offset(offset).all()
-
     # If proximity search is requested, filter and sort by distance
     if lat and lon:
         try:
             lat = float(lat)
             lon = float(lon)
 
+            # Get ALL sites (no pagination yet) for proximity filtering
+            all_sites = query.all()
+
             # Calculate distance for each site
             sites_with_distance = []
-            for site in sites:
+            for site in all_sites:
                 distance = calculate_distance(lat, lon, site.latitude, site.longitude)
                 if distance <= max_distance:
                     site_dict = site.to_dict()
@@ -113,11 +113,17 @@ def list_sites():
 
             # Sort by distance
             sites_with_distance.sort(key=lambda x: x['distance'])
-            sites_data = sites_with_distance
+
+            # Apply pagination to proximity results
+            sites_data = sites_with_distance[offset:offset + limit]
         except (ValueError, TypeError):
             current_app.logger.error(f'Invalid lat/lon values: {lat}, {lon}')
+            # Fallback to regular pagination
+            sites = query.limit(limit).offset(offset).all()
             sites_data = [site.to_dict() for site in sites]
     else:
+        # Regular pagination (no proximity search)
+        sites = query.limit(limit).offset(offset).all()
         sites_data = [site.to_dict() for site in sites]
 
     return jsonify({
@@ -143,7 +149,8 @@ def get_site(site_id):
     if not site:
         return jsonify({'error': 'Site not found'}), 404
 
-    return jsonify({'site': site.to_dict()}), 200
+    # Include tour details when fetching a single site
+    return jsonify({'site': site.to_dict(include_tours=True)}), 200
 
 
 @sites_bp.route('', methods=['POST'])

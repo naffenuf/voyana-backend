@@ -61,6 +61,11 @@ export interface Site {
   phone_number: string | null;
   googlePhotoReferences: string[];
   tourCount: number;
+  tours?: Array<{
+    id: string;
+    name: string;
+    status: string;
+  }>;
   createdAt: string;
   updatedAt: string;
   distance?: number;

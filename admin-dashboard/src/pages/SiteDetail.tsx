@@ -761,6 +761,39 @@ export default function SiteDetail() {
                       })}
                     </div>
                   </div>
+
+                  {/* Used in Tours */}
+                  {siteData.tours && siteData.tours.length > 0 && (
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">
+                        Used in Tours ({siteData.tours.length})
+                      </label>
+                      <div className="space-y-2">
+                        {siteData.tours.map((tour) => (
+                          <button
+                            key={tour.id}
+                            onClick={() => navigate(`/tours/${tour.id}`)}
+                            className="w-full text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-[#8B6F47] hover:bg-[#8B6F47]/5 transition-all duration-200 group"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm text-gray-900 group-hover:text-[#8B6F47] font-medium">
+                                {tour.name}
+                              </span>
+                              <span className={`text-xs px-2 py-0.5 rounded ${
+                                tour.status === 'live'
+                                  ? 'bg-green-100 text-green-800'
+                                  : tour.status === 'draft'
+                                  ? 'bg-gray-100 text-gray-800'
+                                  : 'bg-amber-100 text-amber-800'
+                              }`}>
+                                {tour.status}
+                              </span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
             </div>

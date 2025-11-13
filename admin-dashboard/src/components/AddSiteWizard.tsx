@@ -32,10 +32,10 @@ function MapRecenter({ center }: { center: [number, number] }) {
   return null;
 }
 
-type WizardStep = 'location' | 'search' | 'photos' | 'details';
+type WizardStep = 'initial' | 'search' | 'photos' | 'details';
 
 export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, initialLocation }: AddSiteWizardProps) {
-  const [step, setStep] = useState<WizardStep>('location');
+  const [step, setStep] = useState<WizardStep>('initial');
   const [siteName, setSiteName] = useState('');
   const [location, setLocation] = useState<{ latitude: number; longitude: number }>(
     initialLocation || { latitude: 40.7580, longitude: -73.9855 } // Times Square default
@@ -50,21 +50,94 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [saving, setSaving] = useState(false);
   const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [existingSites, setExistingSites] = useState<Site[]>([]);
+  const [loadingExistingSites, setLoadingExistingSites] = useState(false);
+  const [currentTourSiteIds, setCurrentTourSiteIds] = useState<string[]>([]);
 
-  // Reset state when wizard opens
+  // Reset state when wizard opens and load existing sites
   useEffect(() => {
     if (isOpen) {
-      setStep('location');
+      const loc = initialLocation || { latitude: 40.7580, longitude: -73.9855 };
+
+      setStep('initial');
       setSiteName('');
-      setLocation(initialLocation || { latitude: 40.7580, longitude: -73.9855 });
+      setLocation(loc);
       setSearchResults([]);
       setSelectedPlace(null);
       setSelectedPhoto(null);
       setDescription('');
       setCity('');
       setNeighborhood('');
+      setExistingSites([]);
+      setCurrentTourSiteIds([]);
+
+      // Load existing sites and current tour sites with the correct location
+      loadExistingSites(loc);
+      if (tourId) {
+        loadCurrentTourSites();
+      }
     }
-  }, [isOpen, initialLocation]);
+  }, [isOpen, initialLocation, tourId]);
+
+  const loadExistingSites = async (loc: { latitude: number; longitude: number }) => {
+    setLoadingExistingSites(true);
+    try {
+      const response = await sitesApi.list({
+        lat: loc.latitude,
+        lon: loc.longitude,
+        max_distance: 10000, // 10km radius
+        limit: 100,
+      });
+      setExistingSites(response.sites);
+    } catch (error: any) {
+      console.error('Failed to load existing sites:', error);
+      toast.error('Failed to load existing sites');
+    } finally {
+      setLoadingExistingSites(false);
+    }
+  };
+
+  const loadCurrentTourSites = async () => {
+    if (!tourId) return;
+    try {
+      const tour = await toursApi.get(tourId);
+      setCurrentTourSiteIds(tour.siteIds || []);
+    } catch (error: any) {
+      console.error('Failed to load tour sites:', error);
+    }
+  };
+
+  const handleSelectExistingSite = async (site: Site) => {
+    // Check if site is already in tour
+    if (currentTourSiteIds.includes(site.id)) {
+      toast.error('This site is already in the tour');
+      return;
+    }
+
+    if (!tourId) {
+      // If not adding to tour, just notify parent
+      toast.success('Site selected');
+      onSiteCreated(site);
+      onClose();
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Add site to tour
+      await toursApi.update(tourId, {
+        siteIds: [...currentTourSiteIds, site.id],
+      });
+
+      toast.success('Site added to tour!');
+      onSiteCreated(site);
+      onClose();
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to add site to tour');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const handleSearchPlaces = async () => {
     if (!siteName.trim()) {
@@ -214,74 +287,126 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
           </button>
         </div>
 
-        {/* Step Indicator */}
-        <div className="flex items-center justify-center px-6 py-4 border-b bg-gray-50">
-          <div className="flex items-center space-x-2">
-            <div className={`flex items-center space-x-2 ${step === 'location' ? 'text-blue-600' : 'text-gray-400'}`}>
-              <MapPin className="w-5 h-5" />
-              <span className="text-sm font-medium">Location</span>
-            </div>
-            <div className="w-8 h-px bg-gray-300" />
-            <div className={`flex items-center space-x-2 ${step === 'search' ? 'text-blue-600' : 'text-gray-400'}`}>
-              <Search className="w-5 h-5" />
-              <span className="text-sm font-medium">Search</span>
-            </div>
-            <div className="w-8 h-px bg-gray-300" />
-            <div className={`flex items-center space-x-2 ${step === 'photos' ? 'text-blue-600' : 'text-gray-400'}`}>
-              <ImageIcon className="w-5 h-5" />
-              <span className="text-sm font-medium">Photo</span>
-            </div>
-            <div className="w-8 h-px bg-gray-300" />
-            <div className={`flex items-center space-x-2 ${step === 'details' ? 'text-blue-600' : 'text-gray-400'}`}>
-              <FileText className="w-5 h-5" />
-              <span className="text-sm font-medium">Details</span>
+        {/* Step Indicator - only show if in new site creation flow */}
+        {step !== 'initial' && (
+          <div className="flex items-center justify-center px-6 py-4 border-b bg-gray-50">
+            <div className="flex items-center space-x-2">
+              <div className={`flex items-center space-x-2 ${step === 'search' ? 'text-blue-600' : 'text-gray-400'}`}>
+                <Search className="w-5 h-5" />
+                <span className="text-sm font-medium">Search</span>
+              </div>
+              <div className="w-8 h-px bg-gray-300" />
+              <div className={`flex items-center space-x-2 ${step === 'photos' ? 'text-blue-600' : 'text-gray-400'}`}>
+                <ImageIcon className="w-5 h-5" />
+                <span className="text-sm font-medium">Photo</span>
+              </div>
+              <div className="w-8 h-px bg-gray-300" />
+              <div className={`flex items-center space-x-2 ${step === 'details' ? 'text-blue-600' : 'text-gray-400'}`}>
+                <FileText className="w-5 h-5" />
+                <span className="text-sm font-medium">Details</span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-6">
-          {/* Step 1: Location */}
-          {step === 'location' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Site Name
+          {/* Initial Step: Search or Select Existing */}
+          {step === 'initial' && (
+            <div className="space-y-6">
+              {/* Google Places Search Section */}
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Search Google Places
                 </label>
-                <input
-                  type="text"
-                  value={siteName}
-                  onChange={(e) => setSiteName(e.target.value)}
-                  placeholder="e.g., Statue of Liberty"
-                  className="w-full px-3 py-2 border rounded-md"
-                  autoFocus
-                />
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    value={siteName}
+                    onChange={(e) => setSiteName(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSearchPlaces()}
+                    placeholder="e.g., Statue of Liberty"
+                    className="flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    autoFocus
+                  />
+                  <button
+                    onClick={handleSearchPlaces}
+                    disabled={searching || !siteName.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition flex items-center space-x-2"
+                  >
+                    {searching ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Searching...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Search className="w-4 h-4" />
+                        <span>Search</span>
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Location (click on map to adjust)
-                </label>
-                <div className="h-96 rounded-md overflow-hidden border">
-                  <MapContainer
-                    center={[location.latitude, location.longitude]}
-                    zoom={16}
-                    style={{ height: '100%', width: '100%' }}
-                  >
-                    <TileLayer
-                      attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-                    <Marker position={[location.latitude, location.longitude]} />
-                    <MapRecenter center={[location.latitude, location.longitude]} />
-                    <MapClickHandler
-                      onLocationSelect={(lat, lng) => setLocation({ latitude: lat, longitude: lng })}
-                    />
-                  </MapContainer>
+              {/* Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
                 </div>
-                <p className="text-sm text-gray-500 mt-2">
-                  Lat: {location.latitude.toFixed(6)}, Lng: {location.longitude.toFixed(6)}
-                </p>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">or select existing site</span>
+                </div>
+              </div>
+
+              {/* Existing Sites List */}
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-700">
+                  Nearby Sites
+                </label>
+
+                {loadingExistingSites ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+                  </div>
+                ) : (() => {
+                  // Filter out sites already in tour
+                  const availableSites = existingSites.filter(site => !currentTourSiteIds.includes(site.id));
+
+                  return availableSites.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p>No existing sites found nearby.</p>
+                      <p className="text-sm mt-1">Search for a new site above.</p>
+                    </div>
+                  ) : (
+                    <div className="max-h-96 overflow-y-auto space-y-1 border rounded-md p-2">
+                      {availableSites.map((site) => {
+                        const distanceInMiles = site.distance ? (site.distance / 1609.34).toFixed(1) : null;
+
+                        return (
+                          <button
+                            key={site.id}
+                            onClick={() => handleSelectExistingSite(site)}
+                            disabled={saving}
+                            className="w-full text-left px-3 py-2 rounded hover:bg-blue-50 transition flex items-center justify-between gap-2"
+                          >
+                            <span className="truncate flex-1">{site.title}</span>
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              {site.tourCount > 0 && (
+                                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                                  {site.tourCount} tour{site.tourCount > 1 ? 's' : ''}
+                                </span>
+                              )}
+                              {distanceInMiles && (
+                                <span className="text-sm text-gray-500">{distanceInMiles} mi</span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           )}
@@ -292,10 +417,10 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-medium">Select Place</h3>
                 <button
-                  onClick={() => setStep('location')}
+                  onClick={() => setStep('initial')}
                   className="text-sm text-blue-600 hover:text-blue-800"
                 >
-                  ← Back to Location
+                  ← Back
                 </button>
               </div>
 
@@ -482,31 +607,12 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
           <button
             onClick={onClose}
             className="px-4 py-2 text-gray-700 hover:bg-gray-200 rounded-md transition"
+            disabled={saving}
           >
             Cancel
           </button>
 
           <div className="flex items-center space-x-2">
-            {step === 'location' && (
-              <button
-                onClick={handleSearchPlaces}
-                disabled={searching || !siteName.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition flex items-center space-x-2"
-              >
-                {searching ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Searching...</span>
-                  </>
-                ) : (
-                  <>
-                    <Search className="w-4 h-4" />
-                    <span>Search Places</span>
-                  </>
-                )}
-              </button>
-            )}
-
             {step === 'photos' && (
               <button
                 onClick={() => selectedPhoto && setStep('details')}

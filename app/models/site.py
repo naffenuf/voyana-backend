@@ -71,9 +71,9 @@ class Site(db.Model):
         avg_lng = sum(loc[1] for loc in self.user_submitted_locations) / len(self.user_submitted_locations)
         return (avg_lat, avg_lng)
 
-    def to_dict(self):
+    def to_dict(self, include_tours=False):
         """Convert to dictionary."""
-        return {
+        result = {
             'id': str(self.id),
             'title': self.title,
             'description': self.description,
@@ -96,6 +96,19 @@ class Site(db.Model):
             'createdAt': self.created_at.isoformat(),
             'updatedAt': self.updated_at.isoformat(),
         }
+
+        # Optionally include tour details
+        if include_tours:
+            result['tours'] = [
+                {
+                    'id': str(tour_site.tour.id),
+                    'name': tour_site.tour.name,
+                    'status': tour_site.tour.status,
+                }
+                for tour_site in self.tour_sites
+            ]
+
+        return result
 
     def __repr__(self):
         return f'<Site {self.title}>'
