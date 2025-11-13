@@ -142,6 +142,9 @@ def create_app(config_name='development'):
     # Register error handlers
     register_error_handlers(app)
 
+    # Register security headers
+    register_security_headers(app)
+
     # Register CLI commands
     register_cli_commands(app)
 
@@ -359,6 +362,35 @@ def register_error_handlers(app):
     def handle_exception(error):
         app.logger.error(f'Unhandled exception: {error}', exc_info=True)
         return jsonify({'error': 'An unexpected error occurred'}), 500
+
+
+def register_security_headers(app):
+    """Add security headers to all responses."""
+
+    @app.after_request
+    def set_security_headers(response):
+        """Set security headers on every response."""
+        from flask import request
+
+        # HSTS - Force HTTPS (only add if request is secure)
+        # Render.com handles HTTPS termination, so check X-Forwarded-Proto header
+        is_secure = request.is_secure or request.headers.get('X-Forwarded-Proto') == 'https'
+        if is_secure:
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+
+        # Prevent MIME sniffing
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+
+        # Prevent clickjacking
+        response.headers['X-Frame-Options'] = 'DENY'
+
+        # XSS protection (legacy, but doesn't hurt)
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+
+        # Referrer policy
+        response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+
+        return response
 
 
 def register_cli_commands(app):
