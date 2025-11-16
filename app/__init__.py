@@ -207,6 +207,7 @@ def register_blueprints(app):
 
     # Health check endpoint (no prefix)
     @app.route('/api/health')
+    @limiter.exempt  # Exempt from rate limiting for load balancer health checks
     def health_check():
         """Health check for load balancers."""
         try:
