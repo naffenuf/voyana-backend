@@ -33,74 +33,13 @@
     .image-grid-item:hover img {
       transform: scale(1.05);
     }
-
-    /* Tilted Tour Cards */
-    .tour-cards-container {
-      perspective: 1500px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 400px;
-      overflow: hidden;
-      padding: 60px 20px;
-    }
-
-    .tour-card-tilted {
-      width: 280px;
-      height: 360px;
-      position: relative;
-      transition: all 0.4s cubic-bezier(0.4, 0.0, 0.2, 1);
-    }
-
-    .tour-card-tilted:nth-child(1) {
-      transform: translateX(-120px) rotateY(25deg) translateZ(-100px);
-      z-index: 1;
-    }
-
-    .tour-card-tilted:nth-child(2) {
-      transform: translateX(-60px) rotateY(15deg) translateZ(-50px);
-      z-index: 2;
-    }
-
-    .tour-card-tilted:nth-child(3) {
-      transform: rotateY(0deg) translateZ(0px);
-      z-index: 3;
-    }
-
-    .tour-card-tilted:nth-child(4) {
-      transform: translateX(60px) rotateY(-15deg) translateZ(-50px);
-      z-index: 2;
-    }
-
-    .tour-card-tilted:nth-child(5) {
-      transform: translateX(120px) rotateY(-25deg) translateZ(-100px);
-      z-index: 1;
-    }
-
-    .tour-card-tilted:hover {
-      transform: translateY(-20px) rotateY(0deg) translateZ(50px) scale(1.05);
-      z-index: 10;
-    }
-
-    .tour-card-inner {
-      width: 100%;
-      height: 100%;
-      background: white;
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    }
-
-    .tour-card-tilted:hover .tour-card-inner {
-      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.4);
-    }
   </style>
 </head>
 <body class="font-inter bg-white text-gray-900">
   <!-- Header -->
   <header class="fixed top-0 w-full bg-white shadow-sm z-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex justify-between items-center">
-      <img src="images/VoyanaLogoOriginal@0.5x.png" alt="Voyana Logo" class="h-16 w-16 object-contain" />
+      <img src="images/VoyanaLogoOriginal@0.5x.png" alt="Voyana Logo" class="h-16 object-contain rounded-lg" />
       <nav class="flex items-center space-x-8">
         <a href="#tours" class="text-gray-600 hover:text-gray-900 font-medium transition">Tours</a>
         <a href="#how-it-works" class="text-gray-600 hover:text-gray-900 font-medium transition">How It Works</a>
@@ -114,7 +53,7 @@
   <!-- Hero Section -->
   <section class="relative pt-20 min-h-screen flex items-center" style="background-image: url('images/hero-background.jpg'); background-size: cover; background-position: center;">
     <!-- Dark overlay for text readability -->
-    <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+    <div class="absolute inset-0 bg-black bg-opacity-40"></div>
 
     <!-- Content -->
     <div class="relative z-10 w-full text-center px-4 sm:px-6 lg:px-8 py-24">
@@ -135,95 +74,49 @@
         </div>
 
         <p class="text-white text-opacity-75 text-sm">
-          Available for iPhone • iOS 15.0 or later • 100% Free
+          Available for iPhone • iOS 18.0 or later • 100% Free
         </p>
       </div>
     </div>
   </section>
 
-  <!-- Featured Tours Section -->
+  <!-- Nearby Tours Section -->
   <section id="tours" class="py-24 bg-gray-50">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="text-center mb-4">
-        <h2 class="text-4xl font-bold mb-4">Featured Tours</h2>
-        <p class="text-xl text-gray-600">Discover New York's neighborhoods, one story at a time</p>
+      <div class="text-center mb-20">
+        <h2 class="text-4xl font-bold mb-4">Nearby Tours</h2>
+        <p class="text-xl text-gray-600">Always know what's around you</p>
       </div>
 
-      <!-- Tilted 3D Tour Cards -->
-      <div class="tour-cards-container">
-        <!-- Tour Card 1 -->
-        <div class="tour-card-tilted">
-          <div class="tour-card-inner">
-            <img src="images/tour-greenwich-village.jpg" alt="Greenwich Village Literary Tour" class="w-full h-48 object-cover">
-            <div class="p-5">
-              <h3 class="text-lg font-bold mb-2">Greenwich Village</h3>
-              <p class="text-gray-600 text-sm mb-3">Literary history & bohemian culture</p>
-              <div class="flex items-center gap-3 text-xs text-gray-500">
-                <span>⏱️ 55 min</span>
-                <span>📍 6 stops</span>
-              </div>
-            </div>
-          </div>
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div class="order-2 lg:order-1">
+          <h3 class="text-3xl font-bold mb-4">Find Tours Near You</h3>
+          <p class="text-lg text-gray-600 mb-6">
+            Every tour and neighborhood in Voyana is automatically sorted by distance from your current location. Whether you're exploring a new area or looking for something close by, you'll always see the nearest tours first.
+          </p>
+          <ul class="space-y-3 text-gray-700">
+            <li class="flex items-start">
+              <svg class="w-6 h-6 text-green-500 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+              <span>All tours sorted by distance</span>
+            </li>
+            <li class="flex items-start">
+              <svg class="w-6 h-6 text-green-500 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+              <span>See exactly how far away each tour is</span>
+            </li>
+            <li class="flex items-start">
+              <svg class="w-6 h-6 text-green-500 mr-3 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+              <span>Discover tours right in your neighborhood</span>
+            </li>
+          </ul>
         </div>
-
-        <!-- Tour Card 2 -->
-        <div class="tour-card-tilted">
-          <div class="tour-card-inner">
-            <img src="images/tour-lower-east-side.jpg" alt="Lower East Side Immigration History" class="w-full h-48 object-cover">
-            <div class="p-5">
-              <h3 class="text-lg font-bold mb-2">Lower East Side</h3>
-              <p class="text-gray-600 text-sm mb-3">Immigration history & diverse culture</p>
-              <div class="flex items-center gap-3 text-xs text-gray-500">
-                <span>⏱️ 45 min</span>
-                <span>📍 7 stops</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tour Card 3 (Center - Featured) -->
-        <div class="tour-card-tilted">
-          <div class="tour-card-inner">
-            <img src="images/tour-brooklyn-heights.jpg" alt="Brooklyn Heights & DUMBO" class="w-full h-48 object-cover">
-            <div class="p-5">
-              <h3 class="text-lg font-bold mb-2">Brooklyn Heights</h3>
-              <p class="text-gray-600 text-sm mb-3">Brownstones & waterfront views</p>
-              <div class="flex items-center gap-3 text-xs text-gray-500">
-                <span>⏱️ 60 min</span>
-                <span>📍 5 stops</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tour Card 4 -->
-        <div class="tour-card-tilted">
-          <div class="tour-card-inner">
-            <img src="images/tour-harlem.jpg" alt="Harlem Renaissance Tour" class="w-full h-48 object-cover">
-            <div class="p-5">
-              <h3 class="text-lg font-bold mb-2">Harlem</h3>
-              <p class="text-gray-600 text-sm mb-3">Jazz, art & cultural renaissance</p>
-              <div class="flex items-center gap-3 text-xs text-gray-500">
-                <span>⏱️ 50 min</span>
-                <span>📍 6 stops</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Tour Card 5 -->
-        <div class="tour-card-tilted">
-          <div class="tour-card-inner">
-            <img src="images/tour-soho.jpg" alt="SoHo Architecture" class="w-full h-48 object-cover">
-            <div class="p-5">
-              <h3 class="text-lg font-bold mb-2">SoHo</h3>
-              <p class="text-gray-600 text-sm mb-3">Cast-iron architecture & art scene</p>
-              <div class="flex items-center gap-3 text-xs text-gray-500">
-                <span>⏱️ 40 min</span>
-                <span>📍 5 stops</span>
-              </div>
-            </div>
-          </div>
+        <div class="order-1 lg:order-2 flex justify-center">
+          <img src="images/app-home.png" alt="Nearby tours list" class="max-w-xs rounded-3xl shadow-2xl border-8 border-gray-900">
         </div>
       </div>
     </div>
@@ -304,16 +197,14 @@
             </ul>
           </div>
           <div class="order-1 lg:order-2 flex justify-center">
-            <img src="images/placeholder-app-tours-list.png" alt="Tour selection screen" class="max-w-xs rounded-3xl shadow-2xl border-8 border-gray-900">
-            <!-- Placeholder: App screenshot showing tour list with map previews -->
+            <img src="images/app-tours-list.png" alt="Tour selection screen" class="max-w-xs rounded-3xl shadow-2xl border-8 border-gray-900">
           </div>
         </div>
 
         <!-- Feature 2: GPS Navigation -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div class="flex justify-center">
-            <img src="images/placeholder-app-navigation.png" alt="GPS navigation screen" class="max-w-xs rounded-3xl shadow-2xl border-8 border-gray-900">
-            <!-- Placeholder: App screenshot showing active tour with GPS arrow and next stop -->
+            <img src="images/app-navigation.png" alt="GPS navigation screen" class="max-w-xs rounded-3xl shadow-2xl border-8 border-gray-900">
           </div>
           <div>
             <p class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Step 2</p>
@@ -350,7 +241,7 @@
             <p class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Step 3</p>
             <h3 class="text-3xl font-bold mb-4">Learn the Stories</h3>
             <p class="text-lg text-gray-600 mb-6">
-              Each stop includes professionally narrated audio covering architecture, history, and local culture. Read detailed descriptions, view photos, and discover what makes each location special. Save your favorite spots to revisit later.
+              Each stop includes high-quality narrated audio covering architecture, history, and local culture. Read detailed descriptions, view photos, and discover what makes each location special. Save your favorite spots to revisit later.
             </p>
             <ul class="space-y-3 text-gray-700">
               <li class="flex items-start">
@@ -374,8 +265,7 @@
             </ul>
           </div>
           <div class="order-1 lg:order-2 flex justify-center">
-            <img src="images/placeholder-app-site-detail.png" alt="Site detail screen" class="max-w-xs rounded-3xl shadow-2xl border-8 border-gray-900">
-            <!-- Placeholder: App screenshot showing site detail with photo, audio player, and description -->
+            <img src="images/app-site-detail.png" alt="Site detail screen" class="max-w-xs rounded-3xl shadow-2xl border-8 border-gray-900">
           </div>
         </div>
       </div>
@@ -397,9 +287,9 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
             </svg>
           </div>
-          <h3 class="text-xl font-bold mb-3">Currently Free to Explore</h3>
+          <h3 class="text-xl font-bold mb-3">Free to Explore</h3>
           <p class="text-gray-600 leading-relaxed">
-            No paywalls, no premium tiers, no subscription tricks. We built Voyana because we love NYC and want to share the city's incredible stories with everyone.
+            All tours are currently free. Enjoy unlimited access now, and stay tuned for premium tours with even deeper stories coming soon.
           </p>
         </div>
 
@@ -423,7 +313,7 @@
           </div>
           <h3 class="text-xl font-bold mb-3">Share with Your Fellow Travelers</h3>
           <p class="text-gray-600 leading-relaxed">
-            Help improve tours by contributing photos, stories, historical facts, or better viewing locations. Your local knowledge makes Voyana better for everyone.
+            Help improve tours by contributing photos, stories, historical facts, or better viewing locations. Your on-the-ground observations make Voyana better for everyone.
           </p>
         </div>
       </div>
@@ -442,7 +332,7 @@
           Our mission is simple: make these stories accessible to everyone. Whether you're a lifelong New Yorker or visiting for the first time, Voyana helps you experience the city like never before—through the eyes of locals who know it best.
         </p>
         <p>
-          Every tour is carefully researched, professionally narrated, and designed to bring history, architecture, and culture to life. We're constantly adding new tours and improving existing ones based on feedback from our community of explorers.
+          Every tour is carefully researched with high-quality narrated audio, and designed to bring history, architecture, and culture to life. We're constantly adding new tours and improving existing ones based on feedback from our community of explorers.
         </p>
       </div>
     </div>
@@ -455,11 +345,17 @@
       <p class="text-xl mb-10 text-gray-300">
         Download Voyana on the App Store and start discovering New York City today
       </p>
-      <a href="https://apps.apple.com/app/id6746415395/" target="_blank" class="inline-block transform hover:scale-105 transition">
-        <img src="images/download.svg" alt="Download on the App Store" class="h-16 mx-auto">
-      </a>
+      <div class="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-12">
+        <a href="https://apps.apple.com/app/id6746415395/" target="_blank" class="inline-block transform hover:scale-105 transition">
+          <img src="images/download.svg" alt="Download on the App Store" class="h-16">
+        </a>
+        <div class="hidden md:flex flex-col items-center gap-3">
+          <img src="images/qr-code.png" alt="QR Code to download Voyana" class="w-32 h-32 rounded-lg bg-white p-2">
+          <p class="text-gray-400 text-sm">Scan with iPhone</p>
+        </div>
+      </div>
       <p class="mt-8 text-gray-400 text-sm">
-        Available for iPhone • iOS 15.0 or later • 100% Free
+        Available for iPhone • iOS 18.0 or later • 100% Free
       </p>
     </div>
   </section>
@@ -469,8 +365,7 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
         <div class="flex items-center space-x-3">
-          <img src="images/VoyanaLogoOriginal@0.5x.png" alt="Voyana Logo" class="h-12 w-12 object-contain opacity-80" />
-          <span class="text-white font-semibold">Voyana</span>
+          <span class="text-white font-semibold">Voyana Tours</span>
         </div>
 
         <div class="flex space-x-6 text-sm">
