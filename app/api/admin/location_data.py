@@ -161,10 +161,10 @@ def update_location_data(feedback_id):
 @admin_required()
 def approve_location_data(feedback_id):
     """
-    Approve location data and add to site's user_submitted_locations (admin only).
+    Approve location data and replace site's main coordinates (admin only).
 
     This endpoint will:
-    1. Append [latitude, longitude] to site.user_submitted_locations array
+    1. Replace site.latitude and site.longitude with submitted coordinates
     2. Mark feedback as resolved
 
     Returns:
@@ -191,22 +191,17 @@ def approve_location_data(feedback_id):
 
     # Get location coordinates
     location_detail = feedback.location_detail
-    new_location = [location_detail.latitude, location_detail.longitude]
+    old_latitude = site.latitude
+    old_longitude = site.longitude
 
-    # Check if location already exists in array (avoid duplicates)
-    if site.user_submitted_locations is None:
-        site.user_submitted_locations = []
+    # Replace site's main coordinates
+    site.latitude = location_detail.latitude
+    site.longitude = location_detail.longitude
 
-    # Check for duplicate (within small tolerance for floating point)
-    is_duplicate = any(
-        abs(loc[0] - new_location[0]) < 0.00001 and abs(loc[1] - new_location[1]) < 0.00001
-        for loc in site.user_submitted_locations
+    current_app.logger.info(
+        f'Updated site {site.id} location from ({old_latitude}, {old_longitude}) '
+        f'to ({site.latitude}, {site.longitude})'
     )
-
-    if not is_duplicate:
-        # Append new location
-        site.user_submitted_locations = site.user_submitted_locations + [new_location]
-        current_app.logger.info(f'Added location {new_location} to site {site.id}')
 
     # Mark feedback as resolved
     feedback.status = 'resolved'
@@ -222,8 +217,8 @@ def approve_location_data(feedback_id):
         'site': {
             'id': str(site.id),
             'title': site.title,
-            'userSubmittedLocations': site.user_submitted_locations,
-            'locationCount': len(site.user_submitted_locations) if site.user_submitted_locations else 0
+            'latitude': site.latitude,
+            'longitude': site.longitude
         }
     }), 200
 

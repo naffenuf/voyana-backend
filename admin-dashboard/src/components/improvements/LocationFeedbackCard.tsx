@@ -48,7 +48,7 @@ export default function LocationFeedbackCard({ feedback, onDelete }: LocationFee
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['location-submissions'] });
       queryClient.invalidateQueries({ queryKey: ['sites-list'] });
-      toast.success('Location approved and added to site');
+      toast.success('Location approved and site coordinates updated');
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to approve location');
@@ -64,7 +64,7 @@ export default function LocationFeedbackCard({ feedback, onDelete }: LocationFee
   };
 
   const handleApprove = () => {
-    if (window.confirm('Are you sure you want to approve this location correction?')) {
+    if (window.confirm('Are you sure you want to approve this location correction? This will replace the site\'s current coordinates.')) {
       approveMutation.mutate();
     }
   };
@@ -273,10 +273,10 @@ export default function LocationFeedbackCard({ feedback, onDelete }: LocationFee
             className="flex items-center gap-2 px-4 py-2 bg-[#8B6F47] text-white rounded-lg hover:bg-[#6B5437] font-medium transition-colors disabled:opacity-50"
           >
             <Check className="w-4 h-4" />
-            Approve & Add to Site Locations
+            Approve & Replace Site Location
           </button>
           <div className="text-xs text-gray-600">
-            This will add the location to the site's user-submitted locations array
+            This will replace the site's current coordinates with the submitted location
           </div>
         </div>
       )}
