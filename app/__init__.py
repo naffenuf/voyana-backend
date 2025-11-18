@@ -231,28 +231,17 @@ def register_blueprints(app):
         import os
         import json
 
-        # Production: return voyanatours.com
-        if app.config.get('ENV') == 'production':
-            return jsonify({
-                'api_base_url': 'https://voyanatours.com',
-                'environment': 'production'
-            }), 200
-
-        # Development: read from local config file (contains ngrok URL)
+        # Simple approach: Just serve the JSON file
+        # No environment-based logic - client decides what to do with it
         config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'remote-config.json')
 
         try:
             with open(config_path, 'r') as f:
                 config_data = json.load(f)
-            config_data['environment'] = 'development'
             return jsonify(config_data), 200
         except FileNotFoundError:
-            # Fallback if config file doesn't exist
-            app.logger.warning(f"Config file not found at: {config_path}, using fallback")
-            return jsonify({
-                'api_base_url': 'http://localhost:5000',
-                'environment': 'development'
-            }), 200
+            app.logger.error(f"Config file not found at: {config_path}")
+            return jsonify({'error': 'Config file not found'}), 500
         except Exception as e:
             app.logger.error(f"Error reading remote-config.json: {e}")
             return jsonify({'error': 'Error reading config', 'details': str(e)}), 500

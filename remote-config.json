@@ -1,7 +1,7 @@
 {
-    "config_version": 2,
+    "config_version": 4,
     "force_upgrade": false,
-    "min_version": "1.0.0",
+    "min_version": "2.0.0",
     "message": "New features available! Please update to continue.",
-    "api_base_url": "https://setsuko-nonrefueling-bentlee.ngrok-free.dev"
+    "api_base_url": "https://voyanatours.com"
 }
