@@ -315,6 +315,90 @@ def update_site(site_id):
     return jsonify({'site': site.to_dict()}), 200
 
 
+@sites_bp.route('/<uuid:site_id>/fact-check', methods=['POST'])
+@device_binding_required()
+@admin_required()
+def fact_check_site(site_id):
+    """
+    Fact-check and rewrite a single site's description using AI.
+
+    Request body (optional):
+        {
+            "comment": "Optional guidance for the AI, e.g., 'Make it shorter' or 'Focus on architecture'"
+        }
+
+    Returns:
+        {
+            "originalDescription": "...",
+            "newDescription": "...",
+            "changesList": "...",
+            "traceId": "..."
+        }
+    """
+    site = Site.query.get(site_id)
+
+    if not site:
+        return jsonify({'error': 'Site not found'}), 404
+
+    if not site.description:
+        return jsonify({'error': 'Site has no description to fact-check'}), 400
+
+    data = request.get_json() or {}
+    admin_comment = data.get('comment', '').strip()
+
+    # Build the comment string to append to prompt if provided
+    comment_text = ''
+    if admin_comment:
+        comment_text = f"\n\nADMIN GUIDANCE: {admin_comment}"
+
+    try:
+        from app.services.ai_service import ai_service
+
+        # Execute fact-check prompt
+        result = ai_service.execute_prompt(
+            'fact_check_site_description',
+            {
+                'site_title': site.title,
+                'location': f"{site.city}, {site.neighborhood}" if site.neighborhood else site.city or 'Unknown',
+                'description': site.description,
+                'admin_comment': comment_text
+            }
+        )
+
+        # Extract response (from parsed JSON)
+        parsed = result.get('parsed', {})
+        rewritten_description = parsed.get('rewritten_description', '')
+        changes_list = parsed.get('changes_list', '')
+        trace_id = result.get('trace_id')
+
+        if not rewritten_description:
+            current_app.logger.error(f'No rewritten description returned for site {site_id}')
+            return jsonify({'error': 'AI did not return a rewritten description'}), 500
+
+        # Store original for response
+        original_description = site.description
+
+        # Update site description
+        site.description = rewritten_description
+        db.session.commit()
+
+        current_app.logger.info(
+            f'Fact-checked site {site_id} ({site.title}), trace_id: {trace_id}'
+        )
+
+        return jsonify({
+            'originalDescription': original_description,
+            'newDescription': rewritten_description,
+            'changesList': changes_list,
+            'traceId': trace_id
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error fact-checking site {site_id}: {e}')
+        return jsonify({'error': str(e)}), 500
+
+
 @sites_bp.route('/<uuid:site_id>', methods=['DELETE'])
 @device_binding_required()
 @admin_required()

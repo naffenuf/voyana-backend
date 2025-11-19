@@ -203,6 +203,24 @@ export const toursApi = {
     }>(`/api/tours/${id}/generate-audio-for-sites`);
     return response.data;
   },
+  factCheckSites: async (id: string) => {
+    const response = await api.post<{
+      sitesProcessed: number;
+      sitesSkipped: number;
+      results: Array<{
+        siteId: string;
+        siteTitle: string;
+        status: 'success' | 'skipped' | 'error';
+        originalDescription?: string;
+        newDescription?: string;
+        changesList?: string;
+        reason?: string;
+        error?: string;
+        traceId?: string;
+      }>;
+    }>(`/api/tours/${id}/fact-check-sites`);
+    return response.data;
+  },
 };
 
 // Admin Tours API
@@ -252,6 +270,16 @@ export const sitesApi = {
 
   delete: async (id: string) => {
     await api.delete(`/api/sites/${id}`);
+  },
+
+  factCheck: async (id: string, comment?: string) => {
+    const response = await api.post<{
+      originalDescription: string;
+      newDescription: string;
+      changesList: string;
+      traceId: string;
+    }>(`/api/sites/${id}/fact-check`, comment ? { comment } : {});
+    return response.data;
   },
 };
 

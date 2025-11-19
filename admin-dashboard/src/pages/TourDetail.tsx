@@ -142,6 +142,29 @@ export default function TourDetail() {
     },
   });
 
+  const factCheckMutation = useMutation({
+    mutationFn: () => toursApi.factCheckSites(id!),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['tour', id] });
+      const successCount = result.sitesProcessed;
+      const skippedCount = result.sitesSkipped;
+      const errorCount = result.results.filter(r => r.status === 'error').length;
+
+      let message = `Fact-check complete! `;
+      if (successCount > 0) message += `${successCount} site(s) updated. `;
+      if (skippedCount > 0) message += `${skippedCount} skipped. `;
+      if (errorCount > 0) message += `${errorCount} error(s).`;
+
+      if (errorCount > 0) {
+        toast.error(message);
+      } else {
+        toast.success(message);
+      }
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to fact-check sites');
+    },
+  });
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -537,9 +560,13 @@ export default function TourDetail() {
                     <div className="flex gap-2">
                       <button
                         type="button"
-                        onClick={() => generateAudioMutation.mutate()}
+                        onClick={() => {
+                          if (confirm('This will generate audio for ALL sites without audio. This costs money and takes time (~1 second per site). Continue?')) {
+                            generateAudioMutation.mutate();
+                          }
+                        }}
                         disabled={!tourData?.sites || tourData.sites.length === 0 || generateAudioMutation.isPending || (!isAdmin && formData.status === 'ready')}
-                        className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 bg-[#69626d] hover:bg-[#534e56] text-white rounded-lg transition-colors flex items-center gap-2 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                         title="Generate audio for all sites that don't have audio"
                       >
                         {generateAudioMutation.isPending ? (
@@ -556,9 +583,32 @@ export default function TourDetail() {
                       </button>
                       <button
                         type="button"
+                        onClick={() => {
+                          if (confirm('This will rewrite ALL site descriptions using AI. This costs money and takes time (~1 second per site). Continue?')) {
+                            factCheckMutation.mutate();
+                          }
+                        }}
+                        disabled={!tourData?.sites || tourData.sites.length === 0 || factCheckMutation.isPending || (!isAdmin && formData.status === 'ready')}
+                        className="px-3 py-1.5 bg-[#d9bdc5] hover:bg-[#c9adb5] text-white rounded-lg transition-colors flex items-center gap-2 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Fact-check and rewrite all site descriptions using AI"
+                      >
+                        {factCheckMutation.isPending ? (
+                          <>
+                            <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                            Checking...
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-lg">🔍</span>
+                            Fact Check
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => setShowAddSiteWizard(true)}
                         disabled={!isAdmin && formData.status === 'ready'}
-                        className="px-4 py-2 bg-[#8B6F47] hover:bg-[#6F5838] text-white rounded-lg transition-colors flex items-center gap-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="px-3 py-1.5 bg-[#8B6F47] hover:bg-[#6F5838] text-white rounded-lg transition-colors flex items-center gap-2 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span className="text-lg">+</span>
                         Add Site

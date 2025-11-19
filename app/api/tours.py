@@ -740,3 +740,158 @@ def generate_audio_for_tour_sites(tour_id):
         db.session.rollback()
         current_app.logger.error(f'Error generating audio for tour sites: {e}', exc_info=True)
         return jsonify({'error': 'An unexpected error occurred'}), 500
+
+
+@tours_bp.route('/<uuid:tour_id>/fact-check-sites', methods=['POST'])
+@jwt_required()
+def fact_check_tour_sites(tour_id):
+    """
+    Fact-check and rewrite descriptions for all sites in a tour using AI.
+    This replaces the site descriptions in the database with fact-checked versions.
+
+    Args:
+        tour_id: UUID of the tour
+
+    Returns:
+        {
+            "sitesProcessed": 5,
+            "sitesSkipped": 2,
+            "results": [
+                {
+                    "siteId": "uuid",
+                    "siteTitle": "Site Name",
+                    "status": "success" | "skipped" | "error",
+                    "originalDescription": "...",
+                    "newDescription": "...",
+                    "changesLis": "...",
+                    "error": "error message if failed"
+                }
+            ]
+        }
+    """
+    from app.services.ai_service import ai_service
+
+    user_id = get_jwt_identity()
+
+    try:
+        # Get the tour
+        tour = Tour.query.get(tour_id)
+
+        if not tour:
+            return jsonify({'error': 'Tour not found'}), 404
+
+        # Get current user to check admin status
+        user = User.query.get(user_id)
+        is_admin = user and user.role == 'admin'
+
+        # Check if user has permission to modify this tour (owner or admin)
+        if tour.owner_id != user_id and not is_admin:
+            return jsonify({'error': 'You do not have permission to modify this tour'}), 403
+
+        # Get all sites for this tour through tour_sites junction table
+        tour_sites = tour.tour_sites
+
+        if not tour_sites:
+            return jsonify({'error': 'Tour has no sites'}), 400
+
+        results = []
+        sites_processed = 0
+        sites_skipped = 0
+
+        current_app.logger.info(f'Fact-checking descriptions for {len(tour_sites)} sites in tour {tour_id}')
+
+        for tour_site in tour_sites:
+            site = tour_site.site
+
+            # Skip if site has no description
+            if not site.description or not site.description.strip():
+                current_app.logger.info(f'Site {site.id} has no description, skipping')
+                results.append({
+                    'siteId': str(site.id),
+                    'siteTitle': site.title,
+                    'status': 'skipped',
+                    'reason': 'No description to fact-check'
+                })
+                sites_skipped += 1
+                continue
+
+            # Fact-check this site's description
+            current_app.logger.info(f'Fact-checking site {site.id}: {site.title}')
+
+            # Add a small delay between requests to avoid rate limiting
+            if sites_processed > 0 or sites_skipped > 0:
+                time.sleep(1)  # 1 second delay between API requests
+
+            try:
+                # Prepare location string
+                location_str = f"{site.latitude}, {site.longitude}"
+                if site.formatted_address:
+                    location_str = f"{site.formatted_address} ({site.latitude}, {site.longitude})"
+
+                # Call AI service with fact-check prompt
+                ai_result = ai_service.execute_prompt(
+                    prompt_name='fact_check_site_description',
+                    variables={
+                        'site_title': site.title,
+                        'location': location_str,
+                        'description': site.description
+                    },
+                    user_id=user_id
+                )
+
+                # Extract rewritten description and changes from parsed JSON
+                if 'parsed' not in ai_result:
+                    raise ValueError('AI response was not valid JSON')
+
+                parsed = ai_result['parsed']
+                new_description = parsed.get('rewritten_description')
+                changes_list = parsed.get('changes_list')
+
+                if not new_description:
+                    raise ValueError('AI response missing rewritten_description')
+
+                # Update site with new description
+                original_description = site.description
+                site.description = new_description
+                db.session.add(site)
+
+                results.append({
+                    'siteId': str(site.id),
+                    'siteTitle': site.title,
+                    'status': 'success',
+                    'originalDescription': original_description,
+                    'newDescription': new_description,
+                    'changesList': changes_list,
+                    'traceId': ai_result.get('trace_id')
+                })
+                sites_processed += 1
+                current_app.logger.info(f'Successfully fact-checked site {site.id}')
+
+            except Exception as e:
+                results.append({
+                    'siteId': str(site.id),
+                    'siteTitle': site.title,
+                    'status': 'error',
+                    'error': str(e)
+                })
+                current_app.logger.error(f'Failed to fact-check site {site.id}: {e}')
+
+        # Commit all changes
+        try:
+            db.session.commit()
+            current_app.logger.info(f'Successfully fact-checked {sites_processed} sites, skipped {sites_skipped}')
+        except Exception as e:
+            db.session.rollback()
+            current_app.logger.error(f'Error committing fact-checked descriptions: {e}')
+            return jsonify({'error': 'Failed to save fact-checked descriptions to sites'}), 500
+
+        return jsonify({
+            'sitesProcessed': sites_processed,
+            'sitesSkipped': sites_skipped,
+            'results': results
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error fact-checking tour sites: {e}', exc_info=True)
+        return jsonify({'error': 'An unexpected error occurred'}), 500

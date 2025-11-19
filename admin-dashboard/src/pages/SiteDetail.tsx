@@ -90,6 +90,7 @@ export default function SiteDetail() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [generatingAudio, setGeneratingAudio] = useState(false);
   const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [factCheckComment, setFactCheckComment] = useState('');
 
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
 
@@ -144,6 +145,19 @@ export default function SiteDetail() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to save site');
+    },
+  });
+
+  const factCheckMutation = useMutation({
+    mutationFn: () => sitesApi.factCheck(id!, factCheckComment || undefined),
+    onSuccess: (result) => {
+      updateField('description', result.newDescription);
+      queryClient.invalidateQueries({ queryKey: ['site', id] });
+      setFactCheckComment('');
+      toast.success('Description fact-checked and updated!');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to fact-check description');
     },
   });
 
@@ -444,6 +458,44 @@ export default function SiteDetail() {
                   </>
                 )}
               </button>
+
+              {/* Fact Check Section */}
+              {!isNew && formData.description && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Optional Guidance for Fact Check
+                  </label>
+                  <input
+                    type="text"
+                    value={factCheckComment}
+                    onChange={(e) => setFactCheckComment(e.target.value)}
+                    placeholder="e.g., 'Make it shorter' or 'Focus on architecture'"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white mb-2"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('This will overwrite the description. Continue?')) {
+                        factCheckMutation.mutate();
+                      }
+                    }}
+                    disabled={!formData.description || factCheckMutation.isPending}
+                    className="w-full px-4 py-2.5 bg-[#d9bdc5] hover:bg-[#c9adb5] text-white text-sm font-medium rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {factCheckMutation.isPending ? (
+                      <>
+                        <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Fact Checking...
+                      </>
+                    ) : (
+                      <>
+                        <span>🔍</span>
+                        Fact Check Description
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Audio */}
@@ -476,7 +528,7 @@ export default function SiteDetail() {
                 type="button"
                 onClick={handleGenerateAudio}
                 disabled={!formData.description || generatingAudio}
-                className="w-full px-4 py-2.5 bg-[#8B6F47] hover:bg-[#6F5838] text-white text-sm font-medium rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full px-4 py-2.5 bg-[#69626d] hover:bg-[#534e56] text-white text-sm font-medium rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
                 {generatingAudio ? (
                   <>
