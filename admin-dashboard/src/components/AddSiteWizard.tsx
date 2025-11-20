@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
-import { X, MapPin, Search, ImageIcon, FileText, Loader2, Sparkles } from 'lucide-react';
+import { X, Search, ImageIcon, FileText, Loader2, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { placesApi, sitesApi, toursApi, adminAiApi } from '../lib/api';
 import type { PlaceSearchResult, PlaceDetails, PlacePhoto, Site } from '../types';
@@ -11,25 +10,6 @@ interface AddSiteWizardProps {
   onSiteCreated: (site: Site) => void;
   tourId?: string;
   initialLocation?: { latitude: number; longitude: number };
-}
-
-// Helper component to handle map clicks
-function MapClickHandler({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) {
-  useMapEvents({
-    click: (e) => {
-      onLocationSelect(e.latlng.lat, e.latlng.lng);
-    },
-  });
-  return null;
-}
-
-// Helper component to recenter map
-function MapRecenter({ center }: { center: [number, number] }) {
-  const map = useMap();
-  useEffect(() => {
-    map.setView(center, map.getZoom());
-  }, [center, map]);
-  return null;
 }
 
 type WizardStep = 'initial' | 'search' | 'photos' | 'details';
