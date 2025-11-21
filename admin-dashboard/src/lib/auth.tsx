@@ -76,7 +76,7 @@ export async function refreshAccessToken(): Promise<string | null> {
   }
 
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/auth/refresh`, {
+    const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
