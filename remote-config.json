@@ -1,7 +1,7 @@
 {
-    "config_version": 4,
+    "config_version": 3,
     "force_upgrade": false,
-    "min_version": "2.0.0",
-    "message": "New features available! Please update to continue.",
+    "min_version": "1.0.0",
+    "message": "Please upgrade to continue using Voyana",
     "api_base_url": "https://voyanatours.com"
 }

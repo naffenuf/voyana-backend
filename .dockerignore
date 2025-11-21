@@ -83,7 +83,6 @@ admin-dashboard/
 
 # Local config files
 local-config.json
-remote-config.json
 
 # Ngrok
 .ngrok
