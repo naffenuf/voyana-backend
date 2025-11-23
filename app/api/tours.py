@@ -742,6 +742,80 @@ def generate_audio_for_tour_sites(tour_id):
         return jsonify({'error': 'An unexpected error occurred'}), 500
 
 
+@tours_bp.route('/<uuid:tour_id>/apply-location-to-sites', methods=['POST'])
+@jwt_required()
+def apply_location_to_sites(tour_id):
+    """
+    Apply the tour's city and neighborhood to all sites in the tour.
+
+    Args:
+        tour_id: UUID of the tour
+
+    Returns:
+        {
+            "sitesUpdated": 5,
+            "city": "San Francisco",
+            "neighborhood": "Mission District"
+        }
+    """
+    user_id = get_jwt_identity()
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
+    try:
+        # Get the tour
+        tour = Tour.query.get(tour_id)
+
+        if not tour:
+            return jsonify({'error': 'Tour not found'}), 404
+
+        # Check if user has permission to modify this tour (owner or admin)
+        if tour.owner_id != int(user_id) and not is_admin:
+            return jsonify({'error': 'You do not have permission to modify this tour'}), 403
+
+        # Creators cannot edit tours that are in 'ready' status
+        if not is_admin and tour.status == 'ready':
+            return jsonify({'error': 'Cannot edit tours that are submitted for review'}), 403
+
+        # Get all sites for this tour
+        tour_sites = tour.tour_sites
+
+        if not tour_sites:
+            return jsonify({'error': 'Tour has no sites'}), 400
+
+        if not tour.city and not tour.neighborhood:
+            return jsonify({'error': 'Tour has no city or neighborhood set'}), 400
+
+        # Update all sites with tour's city and neighborhood
+        sites_updated = 0
+        for tour_site in tour_sites:
+            site = tour_site.site
+            if tour.city:
+                site.city = tour.city
+            if tour.neighborhood:
+                site.neighborhood = tour.neighborhood
+            db.session.add(site)
+            sites_updated += 1
+
+        db.session.commit()
+
+        current_app.logger.info(
+            f'Applied location to {sites_updated} sites in tour {tour_id}: '
+            f'city={tour.city}, neighborhood={tour.neighborhood}'
+        )
+
+        return jsonify({
+            'sitesUpdated': sites_updated,
+            'city': tour.city,
+            'neighborhood': tour.neighborhood
+        }), 200
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error applying location to sites: {e}', exc_info=True)
+        return jsonify({'error': 'An unexpected error occurred'}), 500
+
+
 @tours_bp.route('/<uuid:tour_id>/fact-check-sites', methods=['POST'])
 @jwt_required()
 def fact_check_tour_sites(tour_id):

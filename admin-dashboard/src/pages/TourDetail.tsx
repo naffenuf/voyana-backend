@@ -31,6 +31,8 @@ export default function TourDetail() {
     musicUrls: [],
     durationMinutes: undefined,
     distanceMeters: undefined,
+    city: '',
+    neighborhood: '',
   });
   const [originalData, setOriginalData] = useState<Partial<Tour> | null>(null);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -220,6 +222,8 @@ export default function TourDetail() {
         musicUrls: [],
         durationMinutes: undefined,
         distanceMeters: undefined,
+        city: '',
+        neighborhood: '',
       });
       setHasUnsavedChanges(false);
       toast.success('Changes discarded');
@@ -542,16 +546,76 @@ export default function TourDetail() {
 
               {/* Location Section */}
               <div className="space-y-4 pt-6 border-t border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <span className="text-2xl">📍</span>
+                  Location
+                </h2>
+
+                {/* City and Neighborhood Inputs */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.city || ''}
+                      onChange={(e) => updateField('city', e.target.value)}
+                      placeholder="e.g., San Francisco"
+                      disabled={!isAdmin && formData.status === 'ready'}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Neighborhood
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.neighborhood || ''}
+                      onChange={(e) => updateField('neighborhood', e.target.value)}
+                      placeholder="e.g., Mission District"
+                      disabled={!isAdmin && formData.status === 'ready'}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white disabled:opacity-50 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                </div>
+
+                {/* Apply to All Sites Button */}
+                {!isNew && tourData?.sites && tourData.sites.length > 0 && (formData.city || formData.neighborhood) && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (confirm(`Apply "${formData.neighborhood ? formData.neighborhood + ', ' : ''}${formData.city || ''}" to all ${tourData.sites?.length} sites in this tour?`)) {
+                        try {
+                          // Save tour first to persist city/neighborhood to database
+                          if (hasUnsavedChanges) {
+                            await toursApi.update(id!, {
+                              city: formData.city,
+                              neighborhood: formData.neighborhood,
+                            });
+                          }
+                          // Then apply to all sites
+                          const result = await toursApi.applyLocationToSites(id!);
+                          toast.success(`Updated ${result.sitesUpdated} site(s)`);
+                          queryClient.invalidateQueries({ queryKey: ['tour', id] });
+                        } catch (error: any) {
+                          toast.error(error.response?.data?.error || 'Failed to apply location to sites');
+                        }
+                      }
+                    }}
+                    disabled={!isAdmin && formData.status === 'ready'}
+                    className="px-4 py-2 bg-[#8B6F47] hover:bg-[#6F5838] text-white rounded-lg transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Apply to All Sites ({tourData.sites.length})
+                  </button>
+                )}
+
                 <div className="flex items-center justify-between">
                   <div>
-                    <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <span className="text-2xl">📍</span>
-                      {formData.neighborhood && formData.city
-                        ? `${formData.neighborhood}, ${formData.city}`
-                        : formData.city || formData.neighborhood || 'Location'}
-                    </h2>
                     {tourData?.sites && tourData.sites.length > 0 && (
-                      <p className="text-sm text-gray-500 mt-1 italic">
+                      <p className="text-sm text-gray-500 italic">
                         Order optimized for user's location
                       </p>
                     )}
@@ -983,6 +1047,8 @@ export default function TourDetail() {
             ? { latitude: tourData.latitude, longitude: tourData.longitude }
             : undefined
         }
+        tourCity={formData.city}
+        tourNeighborhood={formData.neighborhood}
       />
 
       {/* Remove Site Dialog */}

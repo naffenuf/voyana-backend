@@ -221,6 +221,15 @@ export const toursApi = {
     }>(`/api/tours/${id}/fact-check-sites`);
     return response.data;
   },
+
+  applyLocationToSites: async (id: string) => {
+    const response = await api.post<{
+      sitesUpdated: number;
+      city: string | null;
+      neighborhood: string | null;
+    }>(`/api/tours/${id}/apply-location-to-sites`);
+    return response.data;
+  },
 };
 
 // Admin Tours API

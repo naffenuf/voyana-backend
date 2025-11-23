@@ -10,11 +10,13 @@ interface AddSiteWizardProps {
   onSiteCreated: (site: Site) => void;
   tourId?: string;
   initialLocation?: { latitude: number; longitude: number };
+  tourCity?: string | null;
+  tourNeighborhood?: string | null;
 }
 
 type WizardStep = 'initial' | 'search' | 'photos' | 'details';
 
-export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, initialLocation }: AddSiteWizardProps) {
+export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, initialLocation, tourCity, tourNeighborhood }: AddSiteWizardProps) {
   const [step, setStep] = useState<WizardStep>('initial');
   const [siteName, setSiteName] = useState('');
   const [location, setLocation] = useState<{ latitude: number; longitude: number }>(
@@ -46,8 +48,9 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
       setSelectedPlace(null);
       setSelectedPhoto(null);
       setDescription('');
-      setCity('');
-      setNeighborhood('');
+      // Prefill city and neighborhood from tour if available
+      setCity(tourCity || '');
+      setNeighborhood(tourNeighborhood || '');
       setExistingSites([]);
       setCurrentTourSiteIds([]);
 
@@ -57,7 +60,7 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
         loadCurrentTourSites();
       }
     }
-  }, [isOpen, initialLocation, tourId]);
+  }, [isOpen, initialLocation, tourId, tourCity, tourNeighborhood]);
 
   const loadExistingSites = async (loc: { latitude: number; longitude: number }) => {
     setLoadingExistingSites(true);
