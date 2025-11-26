@@ -353,6 +353,7 @@ def fact_check_site(site_id):
 
     try:
         from app.services.ai_service import ai_service
+        import requests
 
         # Execute fact-check prompt
         result = ai_service.execute_prompt(
@@ -370,10 +371,29 @@ def fact_check_site(site_id):
         rewritten_description = parsed.get('rewritten_description', '')
         changes_list = parsed.get('changes_list', '')
         trace_id = result.get('trace_id')
+        raw_response = result.get('response', '')
 
         if not rewritten_description:
-            current_app.logger.error(f'No rewritten description returned for site {site_id}')
-            return jsonify({'error': 'AI did not return a rewritten description'}), 500
+            current_app.logger.error(
+                f'No rewritten description returned for site {site_id}, trace_id: {trace_id}'
+            )
+
+            # Check if we got a response but failed to parse it
+            if raw_response:
+                return jsonify({
+                    'error': 'Failed to parse AI response as JSON',
+                    'errorType': 'json_parse_error',
+                    'traceId': trace_id,
+                    'rawResponsePreview': raw_response[:200] + '...' if len(raw_response) > 200 else raw_response,
+                    'message': 'The AI returned a response but it was not in the expected JSON format. Check the trace for details.'
+                }), 500
+            else:
+                return jsonify({
+                    'error': 'AI did not return a rewritten description',
+                    'errorType': 'empty_response',
+                    'traceId': trace_id,
+                    'message': 'The AI response was empty or missing the required fields.'
+                }), 500
 
         # Store original for response
         original_description = site.description
@@ -393,10 +413,46 @@ def fact_check_site(site_id):
             'traceId': trace_id
         }), 200
 
+    except requests.exceptions.Timeout as e:
+        db.session.rollback()
+        current_app.logger.error(f'Timeout fact-checking site {site_id}: {e}')
+        return jsonify({
+            'error': 'Request timed out while waiting for AI response',
+            'errorType': 'timeout',
+            'message': 'The AI service took too long to respond. This may be due to a complex description or high API load. Please try again.',
+            'details': str(e)
+        }), 504
+
+    except requests.exceptions.RequestException as e:
+        db.session.rollback()
+        current_app.logger.error(f'API error fact-checking site {site_id}: {e}')
+        return jsonify({
+            'error': 'AI service API error',
+            'errorType': 'api_error',
+            'message': 'There was an error communicating with the AI service. Please try again later.',
+            'details': str(e)
+        }), 502
+
+    except ValueError as e:
+        db.session.rollback()
+        error_msg = str(e)
+        current_app.logger.error(f'Configuration error fact-checking site {site_id}: {e}')
+        return jsonify({
+            'error': 'Configuration error',
+            'errorType': 'config_error',
+            'message': error_msg,
+            'details': 'Check that all required API keys are configured.'
+        }), 500
+
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f'Error fact-checking site {site_id}: {e}')
-        return jsonify({'error': str(e)}), 500
+        current_app.logger.error(f'Unexpected error fact-checking site {site_id}: {e}')
+        return jsonify({
+            'error': 'Unexpected error',
+            'errorType': 'unknown',
+            'message': 'An unexpected error occurred while fact-checking the description.',
+            'details': str(e)
+        }), 500
 
 
 @sites_bp.route('/<uuid:site_id>', methods=['DELETE'])

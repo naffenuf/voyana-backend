@@ -103,6 +103,64 @@ class AIService:
             trace.raw_request = raw_request
         db.session.commit()
 
+    def _extract_json_from_response(self, content: str, prompt_name: str) -> Optional[Dict]:
+        """
+        Extract JSON from AI response, handling markdown code blocks and other wrapping.
+
+        Args:
+            content: The raw response content from the AI
+            prompt_name: Name of the prompt (for logging)
+
+        Returns:
+            Parsed JSON dict if successful, None otherwise
+        """
+        import re
+
+        # Strategy 1: Try direct JSON parse
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
+
+        # Strategy 2: Try to extract from markdown code block
+        # Match ```json ... ``` or ``` ... ```
+        code_block_patterns = [
+            r'```json\s*\n(.*?)\n```',  # ```json ... ```
+            r'```\s*\n(.*?)\n```',       # ``` ... ```
+        ]
+
+        for pattern in code_block_patterns:
+            match = re.search(pattern, content, re.DOTALL)
+            if match:
+                try:
+                    extracted = match.group(1).strip()
+                    return json.loads(extracted)
+                except json.JSONDecodeError:
+                    continue
+
+        # Strategy 3: Try to find JSON object boundaries
+        # Look for outermost { ... } or [ ... ]
+        brace_match = re.search(r'\{.*\}', content, re.DOTALL)
+        if brace_match:
+            try:
+                return json.loads(brace_match.group(0))
+            except json.JSONDecodeError:
+                pass
+
+        bracket_match = re.search(r'\[.*\]', content, re.DOTALL)
+        if bracket_match:
+            try:
+                return json.loads(bracket_match.group(0))
+            except json.JSONDecodeError:
+                pass
+
+        # All strategies failed - log the raw content for debugging
+        logger.warning(
+            f'Failed to parse JSON response for prompt {prompt_name}. '
+            f'Raw content (first 500 chars): {content[:500]}'
+        )
+        return None
+
     def _call_openai(self, prompt_config: Dict[str, Any], system_prompt: str,
                     user_prompt: str, trace: AITrace) -> str:
         """Call OpenAI API."""
@@ -158,92 +216,128 @@ class AIService:
 
     def _call_grok(self, prompt_config: Dict[str, Any], system_prompt: str,
                   user_prompt: str, trace: AITrace) -> str:
-        """Call Grok (X.AI) API."""
-        try:
-            api_key = current_app.config.get('GROK_API_KEY')
-            if not api_key:
-                raise ValueError('GROK_API_KEY not configured')
+        """Call Grok (X.AI) API with retry logic for timeout errors."""
+        api_key = current_app.config.get('GROK_API_KEY')
+        if not api_key:
+            raise ValueError('GROK_API_KEY not configured')
 
-            # Prepare messages
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": user_prompt})
+        # Prepare messages
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": user_prompt})
 
-            # Extract parameters
-            parameters = prompt_config.get('parameters', {})
-            model = prompt_config.get('model', 'grok-beta')
+        # Extract parameters
+        parameters = prompt_config.get('parameters', {})
+        model = prompt_config.get('model', 'grok-beta')
 
-            # Build request payload
-            payload = {
-                "messages": messages,
-                "model": model,
-                "stream": False,
-                "temperature": parameters.get('temperature', 0.7)
-            }
+        # Get timeout from prompt config or use default
+        timeout = prompt_config.get('timeout', 60)
 
-            # Add max_tokens if specified
-            if 'max_tokens' in parameters:
-                payload['max_tokens'] = parameters['max_tokens']
+        # Build request payload
+        payload = {
+            "messages": messages,
+            "model": model,
+            "stream": False,
+            "temperature": parameters.get('temperature', 0.7)
+        }
 
-            # Add response_format if specified (for JSON mode)
-            if 'response_format' in parameters:
-                payload['response_format'] = parameters['response_format']
+        # Add max_tokens if specified
+        if 'max_tokens' in parameters:
+            payload['max_tokens'] = parameters['max_tokens']
 
-            raw_request = payload.copy()
+        # Add response_format if specified (for JSON mode)
+        if 'response_format' in parameters:
+            payload['response_format'] = parameters['response_format']
 
-            # Call X.AI API
-            headers = {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}"
-            }
+        raw_request = payload.copy()
 
-            start_time = time.time()
-            response = requests.post(
-                "https://api.x.ai/v1/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=60
-            )
-            latency = time.time() - start_time
+        # Call X.AI API with retry logic
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
 
-            response.raise_for_status()
-            response_data = response.json()
+        max_retries = 2
+        retry_delays = [5, 10]  # Exponential backoff: 5s, then 10s
 
-            # Extract content
-            content = response_data['choices'][0]['message']['content']
+        for attempt in range(max_retries + 1):
+            try:
+                start_time = time.time()
+                if attempt == 0:
+                    logger.info(f'Calling Grok API with timeout={timeout}s for prompt: {trace.prompt_name}')
+                else:
+                    logger.info(f'Retrying Grok API call (attempt {attempt + 1}/{max_retries + 1}) for prompt: {trace.prompt_name}')
 
-            # Prepare metadata
-            usage = response_data.get('usage', {})
-            metadata = {
-                "latency": round(latency, 3),
-                "tokens_prompt": usage.get('prompt_tokens', 0),
-                "tokens_completion": usage.get('completion_tokens', 0),
-                "tokens_total": usage.get('total_tokens', 0),
-                "finish_reason": response_data['choices'][0].get('finish_reason')
-            }
+                response = requests.post(
+                    "https://api.x.ai/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=timeout
+                )
+                latency = time.time() - start_time
 
-            # Update trace
-            self._update_trace_success(trace, content, raw_request, response_data, metadata)
+                response.raise_for_status()
+                response_data = response.json()
 
-            return content
+                # Extract content
+                content = response_data['choices'][0]['message']['content']
 
-        except requests.exceptions.RequestException as e:
-            error_msg = f'Grok API error: {str(e)}'
-            if hasattr(e, 'response') and e.response is not None:
-                try:
-                    error_detail = e.response.json()
-                    error_msg += f' - {error_detail}'
-                except:
-                    error_msg += f' - {e.response.text}'
-            logger.error(error_msg)
-            self._update_trace_error(trace, error_msg, raw_request if 'raw_request' in locals() else None)
-            raise
-        except Exception as e:
-            error_msg = f'Grok API error: {str(e)}'
-            logger.error(error_msg)
-            self._update_trace_error(trace, error_msg, raw_request if 'raw_request' in locals() else None)
-            raise
+                # Prepare metadata
+                usage = response_data.get('usage', {})
+                metadata = {
+                    "latency": round(latency, 3),
+                    "tokens_prompt": usage.get('prompt_tokens', 0),
+                    "tokens_completion": usage.get('completion_tokens', 0),
+                    "tokens_total": usage.get('total_tokens', 0),
+                    "finish_reason": response_data['choices'][0].get('finish_reason'),
+                    "retry_attempt": attempt
+                }
+
+                # Update trace
+                self._update_trace_success(trace, content, raw_request, response_data, metadata)
+
+                return content
+
+            except requests.exceptions.Timeout as e:
+                # Timeout error - retry if attempts remaining
+                if attempt < max_retries:
+                    delay = retry_delays[attempt]
+                    logger.warning(
+                        f'Grok API timeout after {timeout}s for prompt {trace.prompt_name}. '
+                        f'Retrying in {delay}s... (attempt {attempt + 1}/{max_retries + 1})'
+                    )
+                    time.sleep(delay)
+                    continue
+                else:
+                    # No more retries
+                    error_msg = f'Grok API timeout after {max_retries + 1} attempts: {str(e)}'
+                    logger.error(error_msg)
+                    self._update_trace_error(trace, error_msg, raw_request)
+                    raise
+
+            except requests.exceptions.RequestException as e:
+                # Non-timeout error - don't retry
+                error_msg = f'Grok API error: {str(e)}'
+                if hasattr(e, 'response') and e.response is not None:
+                    try:
+                        error_detail = e.response.json()
+                        error_msg += f' - {error_detail}'
+                    except:
+                        error_msg += f' - {e.response.text}'
+                logger.error(error_msg)
+                self._update_trace_error(trace, error_msg, raw_request)
+                raise
+
+            except Exception as e:
+                # Other errors - don't retry
+                error_msg = f'Grok API error: {str(e)}'
+                logger.error(error_msg)
+                self._update_trace_error(trace, error_msg, raw_request)
+                raise
+
+        # Should never reach here
+        raise RuntimeError('Grok API retry logic failed unexpectedly')
 
     def execute_prompt(self, prompt_name: str, variables: Dict[str, Any],
                       user_id: Optional[int] = None) -> Dict[str, Any]:
@@ -309,10 +403,11 @@ class AIService:
             parameters = prompt_config.get('parameters', {})
             response_format = parameters.get('response_format', {})
             if response_format.get('type') == 'json_object':
-                try:
-                    result['parsed'] = json.loads(content)
-                except json.JSONDecodeError:
-                    logger.warning(f'Failed to parse JSON response for prompt {prompt_name}')
+                parsed = self._extract_json_from_response(content, prompt_name)
+                if parsed:
+                    result['parsed'] = parsed
+                else:
+                    logger.warning(f'Could not extract valid JSON from response for prompt {prompt_name}')
 
             return result
 
