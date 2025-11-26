@@ -372,27 +372,40 @@ def fact_check_site(site_id):
         changes_list = parsed.get('changes_list', '')
         trace_id = result.get('trace_id')
         raw_response = result.get('response', '')
+        finish_reason = result.get('finish_reason')
 
         if not rewritten_description:
             current_app.logger.error(
                 f'No rewritten description returned for site {site_id}, trace_id: {trace_id}'
             )
 
+            # Check if response was truncated
+            if finish_reason == 'length':
+                return jsonify({
+                    'error': 'Response was truncated due to token limit',
+                    'errorType': 'response_truncated',
+                    'traceId': trace_id,
+                    'rawResponsePreview': raw_response[:500] + '...' if len(raw_response) > 500 else raw_response,
+                    'message': 'The AI response was cut off mid-sentence due to token limits. The token limit has been increased to prevent this.',
+                    'traceUrl': f'/ai-traces?traceId={trace_id}'
+                }), 500
             # Check if we got a response but failed to parse it
-            if raw_response:
+            elif raw_response:
                 return jsonify({
                     'error': 'Failed to parse AI response as JSON',
                     'errorType': 'json_parse_error',
                     'traceId': trace_id,
                     'rawResponsePreview': raw_response[:200] + '...' if len(raw_response) > 200 else raw_response,
-                    'message': 'The AI returned a response but it was not in the expected JSON format. Check the trace for details.'
+                    'message': 'The AI returned a response but it was not in the expected JSON format. Check the trace for details.',
+                    'traceUrl': f'/ai-traces?traceId={trace_id}'
                 }), 500
             else:
                 return jsonify({
                     'error': 'AI did not return a rewritten description',
                     'errorType': 'empty_response',
                     'traceId': trace_id,
-                    'message': 'The AI response was empty or missing the required fields.'
+                    'message': 'The AI response was empty or missing the required fields.',
+                    'traceUrl': f'/ai-traces?traceId={trace_id}'
                 }), 500
 
         # Store original for response

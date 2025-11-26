@@ -202,6 +202,13 @@ class AIService:
                 "finish_reason": response.choices[0].finish_reason
             }
 
+            # Warn if response was truncated due to max_tokens
+            if response.choices[0].finish_reason == "length":
+                logger.warning(
+                    f'OpenAI response truncated for prompt {trace.prompt_name} - '
+                    f'hit max_tokens limit ({max_tokens}). Consider increasing max_tokens.'
+                )
+
             # Update trace
             raw_response = response.model_dump()
             self._update_trace_success(trace, content, raw_request, raw_response, metadata)
@@ -285,14 +292,23 @@ class AIService:
 
                 # Prepare metadata
                 usage = response_data.get('usage', {})
+                finish_reason = response_data['choices'][0].get('finish_reason')
                 metadata = {
                     "latency": round(latency, 3),
                     "tokens_prompt": usage.get('prompt_tokens', 0),
                     "tokens_completion": usage.get('completion_tokens', 0),
                     "tokens_total": usage.get('total_tokens', 0),
-                    "finish_reason": response_data['choices'][0].get('finish_reason'),
+                    "finish_reason": finish_reason,
                     "retry_attempt": attempt
                 }
+
+                # Warn if response was truncated due to max_tokens
+                if finish_reason == "length":
+                    max_tokens = parameters.get('max_tokens', 'not specified')
+                    logger.warning(
+                        f'Grok response truncated for prompt {trace.prompt_name} - '
+                        f'hit max_tokens limit ({max_tokens}). Consider increasing max_tokens.'
+                    )
 
                 # Update trace
                 self._update_trace_success(trace, content, raw_request, response_data, metadata)
@@ -396,7 +412,8 @@ class AIService:
 
             result = {
                 'response': content,
-                'trace_id': str(trace.id)
+                'trace_id': str(trace.id),
+                'finish_reason': trace.trace_metadata.get('finish_reason') if trace.trace_metadata else None
             }
 
             # Try to parse JSON if response_format is json_object
