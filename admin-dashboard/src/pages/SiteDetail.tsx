@@ -161,6 +161,20 @@ export default function SiteDetail() {
     },
   });
 
+  // Warn before closing/refreshing tab or losing LLM operations
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges || generatingAudio || generatingDescription || factCheckMutation.isPending) {
+        e.preventDefault();
+        // Most browsers ignore custom messages and show their own
+        e.returnValue = '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [hasUnsavedChanges, generatingAudio, generatingDescription, factCheckMutation.isPending]);
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
   };
@@ -199,8 +213,19 @@ export default function SiteDetail() {
   };
 
   const handleBack = () => {
-    if (hasUnsavedChanges) {
-      if (window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+    const hasOperations = generatingAudio || generatingDescription || factCheckMutation.isPending;
+
+    if (hasUnsavedChanges || hasOperations) {
+      let message = '';
+      if (hasUnsavedChanges && hasOperations) {
+        message = 'You have unsaved changes and AI generation in progress. Leaving now will cancel the operation. Are you sure?';
+      } else if (hasOperations) {
+        message = 'AI generation in progress. Leaving now will cancel the operation. Are you sure?';
+      } else {
+        message = 'You have unsaved changes. Are you sure you want to leave?';
+      }
+
+      if (window.confirm(message)) {
         // Navigate back to tour if coming from tour, otherwise to sites list
         if (navigationState?.fromTour) {
           navigate(`/tours/${navigationState.fromTour}`);
@@ -221,8 +246,19 @@ export default function SiteDetail() {
   const handlePrevious = () => {
     if (!navigationState || navigationState.siteIndex === undefined || !navigationState.siteIds) return;
 
-    if (hasUnsavedChanges) {
-      if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+    const hasOperations = generatingAudio || generatingDescription || factCheckMutation.isPending;
+
+    if (hasUnsavedChanges || hasOperations) {
+      let message = '';
+      if (hasUnsavedChanges && hasOperations) {
+        message = 'You have unsaved changes and AI generation in progress. Leaving now will cancel the operation. Are you sure?';
+      } else if (hasOperations) {
+        message = 'AI generation in progress. Leaving now will cancel the operation. Are you sure?';
+      } else {
+        message = 'You have unsaved changes. Are you sure you want to leave?';
+      }
+
+      if (!window.confirm(message)) {
         return;
       }
     }
@@ -244,8 +280,19 @@ export default function SiteDetail() {
   const handleNext = () => {
     if (!navigationState || navigationState.siteIndex === undefined || !navigationState.siteIds) return;
 
-    if (hasUnsavedChanges) {
-      if (!window.confirm('You have unsaved changes. Are you sure you want to leave?')) {
+    const hasOperations = generatingAudio || generatingDescription || factCheckMutation.isPending;
+
+    if (hasUnsavedChanges || hasOperations) {
+      let message = '';
+      if (hasUnsavedChanges && hasOperations) {
+        message = 'You have unsaved changes and AI generation in progress. Leaving now will cancel the operation. Are you sure?';
+      } else if (hasOperations) {
+        message = 'AI generation in progress. Leaving now will cancel the operation. Are you sure?';
+      } else {
+        message = 'You have unsaved changes. Are you sure you want to leave?';
+      }
+
+      if (!window.confirm(message)) {
         return;
       }
     }
