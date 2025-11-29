@@ -230,6 +230,13 @@ export const toursApi = {
     }>(`/api/tours/${id}/apply-location-to-sites`);
     return response.data;
   },
+
+  generateMap: async (id: string) => {
+    const response = await api.post<{
+      mapUrl: string;
+    }>(`/api/tours/${id}/generate-map`);
+    return response.data;
+  },
 };
 
 // Admin Tours API

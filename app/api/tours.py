@@ -367,6 +367,20 @@ def update_tour(tour_id):
             f'{distance_meters:.1f}m, {duration_minutes}min'
         )
 
+        # Auto-regenerate map when sites change
+        try:
+            from app.services.map_generation_service import map_generation_service
+            current_app.logger.info(f'Auto-regenerating map for tour {tour.id}')
+            map_url = map_generation_service.generate_tour_map(str(tour.id))
+            if map_url:
+                tour.map_image_url = map_url
+                current_app.logger.info(f'Successfully regenerated map for tour {tour.id}: {map_url}')
+            else:
+                current_app.logger.warning(f'Failed to auto-regenerate map for tour {tour.id}')
+        except Exception as e:
+            current_app.logger.error(f'Error auto-regenerating map for tour {tour.id}: {e}')
+            # Don't fail the whole request if map generation fails
+
     db.session.commit()
 
     current_app.logger.info(f'Updated tour: {tour.id} ({tour.name})')
@@ -969,3 +983,46 @@ def fact_check_tour_sites(tour_id):
         db.session.rollback()
         current_app.logger.error(f'Error fact-checking tour sites: {e}', exc_info=True)
         return jsonify({'error': 'An unexpected error occurred'}), 500
+
+
+@tours_bp.route('/<uuid:tour_id>/generate-map', methods=['POST'])
+@jwt_required()
+def generate_tour_map(tour_id):
+    """
+    Generate or regenerate map image for a tour (admin or owner only).
+
+    Returns:
+        {
+            "mapUrl": "https://s3.../tour-xxx.png"
+        }
+    """
+    user_id = int(get_jwt_identity())
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
+    tour = Tour.query.get(tour_id)
+
+    if not tour:
+        return jsonify({'error': 'Tour not found'}), 404
+
+    # Check ownership (admin or owner)
+    if not is_admin and tour.owner_id != user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    try:
+        from app.services.map_generation_service import map_generation_service
+
+        current_app.logger.info(f'Manual map generation requested for tour {tour.id}')
+
+        map_url = map_generation_service.generate_tour_map(str(tour_id))
+
+        if not map_url:
+            return jsonify({'error': 'Failed to generate map. Tour may have fewer than 2 sites with coordinates.'}), 400
+
+        current_app.logger.info(f'Successfully generated map for tour {tour.id}: {map_url}')
+
+        return jsonify({'mapUrl': map_url}), 200
+
+    except Exception as e:
+        current_app.logger.error(f'Error generating map for tour {tour.id}: {e}')
+        return jsonify({'error': f'Failed to generate map: {str(e)}'}), 500

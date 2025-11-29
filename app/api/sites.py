@@ -527,6 +527,20 @@ def delete_site(site_id):
             f'{distance_meters:.1f}m, {duration_minutes}min'
         )
 
+        # Auto-regenerate map after site deletion
+        try:
+            from app.services.map_generation_service import map_generation_service
+            current_app.logger.info(f'Auto-regenerating map for tour {tour.id} after site deletion')
+            map_url = map_generation_service.generate_tour_map(str(tour.id))
+            if map_url:
+                tour.map_image_url = map_url
+                current_app.logger.info(f'Successfully regenerated map for tour {tour.id}: {map_url}')
+            else:
+                current_app.logger.warning(f'Failed to auto-regenerate map for tour {tour.id}')
+        except Exception as e:
+            current_app.logger.error(f'Error auto-regenerating map for tour {tour.id}: {e}')
+            # Don't fail the whole request if map generation fails
+
     # Commit tour metric updates
     if affected_tours:
         db.session.commit()

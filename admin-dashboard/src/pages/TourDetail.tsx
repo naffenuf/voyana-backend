@@ -168,6 +168,20 @@ export default function TourDetail() {
     },
   });
 
+  const generateMapMutation = useMutation({
+    mutationFn: () => toursApi.generateMap(id!),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['tour', id] });
+      // Update form data with new map URL
+      setFormData(prev => ({ ...prev, mapImageUrl: result.mapUrl }));
+      setOriginalData(prev => ({ ...prev, mapImageUrl: result.mapUrl }));
+      toast.success('Map generated successfully!');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to generate map');
+    },
+  });
+
   // Warn before closing/refreshing tab or losing LLM operations
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -199,6 +213,14 @@ export default function TourDetail() {
     };
 
     saveMutation.mutate(cleanedData);
+  };
+
+  const handleGenerateMap = () => {
+    if (!tourData?.sites || tourData.sites.length < 2) {
+      toast.error('Tour needs at least 2 sites to generate a map');
+      return;
+    }
+    generateMapMutation.mutate();
   };
 
   const handleSaveAndClose = () => {
@@ -470,6 +492,26 @@ export default function TourDetail() {
                       placeholder="https://s3.amazonaws.com/..."
                       className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent transition-all duration-200 bg-white"
                     />
+                    {!isNew && (
+                      <button
+                        type="button"
+                        onClick={handleGenerateMap}
+                        disabled={generateMapMutation.isPending}
+                        className="p-3 text-gray-600 hover:text-[#2D7249] hover:bg-gray-50 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Generate map from tour sites"
+                      >
+                        {generateMapMutation.isPending ? (
+                          <svg className="animate-spin h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                        )}
+                      </button>
+                    )}
                     <FileUpload
                       type="image"
                       folder="tours/maps"
