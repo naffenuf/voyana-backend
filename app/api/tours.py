@@ -799,30 +799,35 @@ def apply_location_to_sites(tour_id):
 @jwt_required()
 def fact_check_tour_sites(tour_id):
     """
-    Fact-check and rewrite descriptions for all sites in a tour using AI.
-    This replaces the site descriptions in the database with fact-checked versions.
+    Fact-check and rewrite descriptions for all sites in a tour (asynchronous).
+
+    This endpoint processes fact-checking in the background to avoid HTTP timeouts
+    when processing tours with many sites. AI fact-checking can take 180s per site.
+    Currently used for admin/bulk operations. Returns immediately with a job ID.
+
+    **Use Case**: Batch fact-checking all site descriptions in a tour
+    **Processing**: Async via Celery background worker
+    **Typical Duration**: 180+ seconds per site (runs in background)
 
     Args:
         tour_id: UUID of the tour
 
     Returns:
+        202 Accepted:
         {
-            "sitesProcessed": 5,
-            "sitesSkipped": 2,
-            "results": [
-                {
-                    "siteId": "uuid",
-                    "siteTitle": "Site Name",
-                    "status": "success" | "skipped" | "error",
-                    "originalDescription": "...",
-                    "newDescription": "...",
-                    "changesLis": "...",
-                    "error": "error message if failed"
-                }
-            ]
+            "jobId": "uuid",
+            "status": "pending",
+            "message": "Fact-check started in background. Use /api/jobs/<jobId> to check status."
         }
+
+    Errors:
+        404: Tour not found
+        403: User does not have permission to modify this tour
+        400: Tour has no sites
+        500: Failed to start background job
     """
-    from app.services.ai_service import ai_service
+    from app.models.background_job import BackgroundJob
+    import uuid
 
     user_id = get_jwt_identity()
 
@@ -847,107 +852,46 @@ def fact_check_tour_sites(tour_id):
         if not tour_sites:
             return jsonify({'error': 'Tour has no sites'}), 400
 
-        results = []
-        sites_processed = 0
-        sites_skipped = 0
+        # Create background job record
+        job_id = uuid.uuid4()
+        celery_task_id = str(uuid.uuid4())  # Will be replaced by actual Celery task ID
 
-        current_app.logger.info(f'Fact-checking descriptions for {len(tour_sites)} sites in tour {tour_id}')
+        job = BackgroundJob(
+            id=job_id,
+            job_type='tour_fact_check',
+            celery_task_id=celery_task_id,
+            parameters={
+                'tour_id': str(tour_id),
+                'user_id': user_id,
+                'total_sites': len(tour_sites)
+            },
+            status='pending',
+            user_id=user_id
+        )
+        db.session.add(job)
+        db.session.commit()
 
-        for tour_site in tour_sites:
-            site = tour_site.site
+        current_app.logger.info(f'Created background job {job_id} for tour {tour_id} fact-check')
 
-            # Skip if site has no description
-            if not site.description or not site.description.strip():
-                current_app.logger.info(f'Site {site.id} has no description, skipping')
-                results.append({
-                    'siteId': str(site.id),
-                    'siteTitle': site.title,
-                    'status': 'skipped',
-                    'reason': 'No description to fact-check'
-                })
-                sites_skipped += 1
-                continue
+        # Import and trigger Celery task
+        from celery_worker import fact_check_tour_sites as fact_check_task
+        task = fact_check_task.apply_async(
+            args=[str(job_id), str(tour_id), user_id],
+            task_id=celery_task_id
+        )
 
-            # Fact-check this site's description
-            current_app.logger.info(f'Fact-checking site {site.id}: {site.title}')
-
-            # Add a small delay between requests to avoid rate limiting
-            if sites_processed > 0 or sites_skipped > 0:
-                time.sleep(1)  # 1 second delay between API requests
-
-            try:
-                # Prepare location string
-                location_str = f"{site.latitude}, {site.longitude}"
-                if site.formatted_address:
-                    location_str = f"{site.formatted_address} ({site.latitude}, {site.longitude})"
-
-                # Call AI service with fact-check prompt
-                ai_result = ai_service.execute_prompt(
-                    prompt_name='fact_check_site_description',
-                    variables={
-                        'site_title': site.title,
-                        'location': location_str,
-                        'description': site.description
-                    },
-                    user_id=user_id
-                )
-
-                # Extract rewritten description and changes from parsed JSON
-                if 'parsed' not in ai_result:
-                    raise ValueError('AI response was not valid JSON')
-
-                parsed = ai_result['parsed']
-                new_description = parsed.get('rewritten_description')
-                changes_list = parsed.get('changes_list')
-
-                if not new_description:
-                    raise ValueError('AI response missing rewritten_description')
-
-                # Update site with new description
-                original_description = site.description
-                site.description = new_description
-                db.session.add(site)
-
-                results.append({
-                    'siteId': str(site.id),
-                    'siteTitle': site.title,
-                    'status': 'success',
-                    'originalDescription': original_description,
-                    'newDescription': new_description,
-                    'changesList': changes_list,
-                    'traceId': ai_result.get('trace_id')
-                })
-                sites_processed += 1
-                current_app.logger.info(f'Successfully fact-checked site {site.id}')
-
-            except Exception as e:
-                results.append({
-                    'siteId': str(site.id),
-                    'siteTitle': site.title,
-                    'status': 'error',
-                    'error': str(e)
-                })
-                current_app.logger.error(f'Failed to fact-check site {site.id}: {e}')
-
-        # Commit all changes
-        try:
-            db.session.commit()
-            current_app.logger.info(f'Successfully fact-checked {sites_processed} sites, skipped {sites_skipped}')
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f'Error committing fact-checked descriptions: {e}')
-            return jsonify({'error': 'Failed to save fact-checked descriptions to sites'}), 500
+        current_app.logger.info(f'Started Celery task {task.id} for job {job_id}')
 
         return jsonify({
-            'sitesProcessed': sites_processed,
-            'sitesSkipped': sites_skipped,
-            'results': results
-        }), 200
+            'jobId': str(job_id),
+            'status': 'pending',
+            'message': 'Fact-check started in background. Use /api/jobs/<jobId> to check status.'
+        }), 202
 
     except Exception as e:
+        current_app.logger.error(f'Error starting fact-check: {e}', exc_info=True)
         db.session.rollback()
-        current_app.logger.error(f'Error fact-checking tour sites: {e}', exc_info=True)
-        return jsonify({'error': 'An unexpected error occurred'}), 500
+        return jsonify({'error': f'Failed to start fact-check: {str(e)}'}), 500
 
 
 @tours_bp.route('/<uuid:tour_id>/generate-map', methods=['POST'])

@@ -32,6 +32,7 @@ celery_app = make_celery(flask_app)
 
 # Import tasks to register them with Celery
 from app.tasks.audio_tasks import generate_audio_for_tour_task
+from app.tasks.tour_tasks import fact_check_tour_sites_task
 
 
 # Register tasks with Celery decorator
@@ -39,3 +40,9 @@ from app.tasks.audio_tasks import generate_audio_for_tour_task
 def generate_audio_for_tour(self, job_id, tour_id, user_id):
     """Celery task wrapper for audio generation."""
     return generate_audio_for_tour_task(celery_app, job_id, tour_id, user_id)
+
+
+@celery_app.task(bind=True, name='fact_check_tour_sites')
+def fact_check_tour_sites(self, job_id, tour_id, user_id):
+    """Celery task wrapper for fact-checking tour sites."""
+    return fact_check_tour_sites_task(celery_app, job_id, tour_id, user_id)
