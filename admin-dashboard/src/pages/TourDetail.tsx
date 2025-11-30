@@ -692,7 +692,7 @@ export default function TourDetail() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (confirm('This will generate audio for ALL sites without audio. This costs money and takes time (~1 second per site). Continue?')) {
+                          if (confirm('This will generate audio for ALL sites without audio. Continue?')) {
                             generateAudioMutation.mutate();
                           }
                         }}
@@ -715,7 +715,7 @@ export default function TourDetail() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (confirm('This will rewrite ALL site descriptions using AI. This costs money and takes time (~1 second per site). Continue?')) {
+                          if (confirm('This will rewrite ALL site descriptions using AI. Continue?')) {
                             factCheckMutation.mutate();
                           }
                         }}
