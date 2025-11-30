@@ -626,27 +626,36 @@ def nearby_tours():
 @limiter.limit(get_user_audio_limit, key_func=get_audio_rate_limit_key)
 def generate_audio_for_tour_sites(tour_id):
     """
-    Generate audio for all sites in a tour that don't already have audio URLs.
+    Generate audio for all sites in a tour (asynchronous).
+
+    This endpoint processes audio generation in the background to avoid HTTP timeouts
+    when generating audio for tours with many sites. Currently used for admin/bulk
+    operations. Returns immediately with a job ID for status polling.
+
+    **Use Case**: Pre-generating audio for all sites in a tour
+    **Processing**: Async via Celery background worker
+    **Typical Duration**: 30-60 seconds per site (runs in background)
 
     Args:
         tour_id: UUID of the tour
 
     Returns:
+        202 Accepted:
         {
-            "sitesProcessed": 5,
-            "sitesSkipped": 2,
-            "results": [
-                {
-                    "siteId": "uuid",
-                    "siteTitle": "Site Name",
-                    "status": "success" | "skipped" | "error",
-                    "audioUrl": "https://...",
-                    "fromCache": true,
-                    "error": "error message if failed"
-                }
-            ]
+            "jobId": "uuid",
+            "status": "pending",
+            "message": "Audio generation started in background. Use /api/jobs/<jobId> to check status."
         }
+
+    Errors:
+        404: Tour not found
+        403: User does not have permission to modify this tour
+        400: Tour has no sites
+        500: Failed to start background job
     """
+    from app.models.background_job import BackgroundJob
+    import uuid
+
     user_id = get_jwt_identity()
 
     try:
@@ -670,90 +679,46 @@ def generate_audio_for_tour_sites(tour_id):
         if not tour_sites:
             return jsonify({'error': 'Tour has no sites'}), 400
 
-        results = []
-        sites_processed = 0
-        sites_skipped = 0
+        # Create background job record
+        job_id = uuid.uuid4()
+        celery_task_id = str(uuid.uuid4())  # Will be replaced by actual Celery task ID
 
-        current_app.logger.info(f'Generating audio for {len(tour_sites)} sites in tour {tour_id}')
+        job = BackgroundJob(
+            id=job_id,
+            job_type='tour_audio_generation',
+            celery_task_id=celery_task_id,
+            parameters={
+                'tour_id': str(tour_id),
+                'user_id': user_id,
+                'total_sites': len(tour_sites)
+            },
+            status='pending',
+            user_id=user_id
+        )
+        db.session.add(job)
+        db.session.commit()
 
-        for tour_site in tour_sites:
-            site = tour_site.site
-            # Skip if site already has audio
-            if site.audio_url:
-                current_app.logger.info(f'Site {site.id} already has audio, skipping')
-                results.append({
-                    'siteId': str(site.id),
-                    'siteTitle': site.title,
-                    'status': 'skipped',
-                    'reason': 'Already has audio URL'
-                })
-                sites_skipped += 1
-                continue
+        current_app.logger.info(f'Created background job {job_id} for tour {tour_id} audio generation')
 
-            # Skip if site has no description
-            if not site.description or not site.description.strip():
-                current_app.logger.info(f'Site {site.id} has no description, skipping')
-                results.append({
-                    'siteId': str(site.id),
-                    'siteTitle': site.title,
-                    'status': 'skipped',
-                    'reason': 'No description to convert'
-                })
-                sites_skipped += 1
-                continue
+        # Import and trigger Celery task
+        from celery_worker import generate_audio_for_tour
+        task = generate_audio_for_tour.apply_async(
+            args=[str(job_id), str(tour_id), user_id],
+            task_id=celery_task_id
+        )
 
-            # Generate audio for this site
-            current_app.logger.info(f'Generating audio for site {site.id}: {site.title}')
-
-            # Add a small delay between requests to avoid rate limiting
-            # Skip delay for first site (sites_processed == 0 and sites_skipped == 0)
-            if sites_processed > 0 or sites_skipped > 0:
-                time.sleep(1)  # 1 second delay between audio generation requests
-
-            audio_result = generate_audio(site.description)
-
-            if audio_result['status'] == 'success':
-                # Update site with audio URL
-                site.audio_url = audio_result['audio_url']
-                db.session.add(site)
-
-                results.append({
-                    'siteId': str(site.id),
-                    'siteTitle': site.title,
-                    'status': 'success',
-                    'audioUrl': audio_result['audio_url'],
-                    'fromCache': audio_result.get('from_cache', False)
-                })
-                sites_processed += 1
-                current_app.logger.info(f'Successfully generated audio for site {site.id}')
-            else:
-                results.append({
-                    'siteId': str(site.id),
-                    'siteTitle': site.title,
-                    'status': 'error',
-                    'error': audio_result.get('error', 'Unknown error')
-                })
-                current_app.logger.error(f'Failed to generate audio for site {site.id}: {audio_result.get("error")}')
-
-        # Commit all changes
-        try:
-            db.session.commit()
-            current_app.logger.info(f'Successfully generated audio for {sites_processed} sites, skipped {sites_skipped}')
-        except Exception as e:
-            db.session.rollback()
-            current_app.logger.error(f'Error committing audio URLs: {e}')
-            return jsonify({'error': 'Failed to save audio URLs to sites'}), 500
+        current_app.logger.info(f'Started Celery task {task.id} for job {job_id}')
 
         return jsonify({
-            'sitesProcessed': sites_processed,
-            'sitesSkipped': sites_skipped,
-            'results': results
-        }), 200
+            'jobId': str(job_id),
+            'status': 'pending',
+            'message': 'Audio generation started in background. Use /api/jobs/<jobId> to check status.'
+        }), 202
 
     except Exception as e:
+        current_app.logger.error(f'Error starting audio generation: {e}', exc_info=True)
         db.session.rollback()
-        current_app.logger.error(f'Error generating audio for tour sites: {e}', exc_info=True)
-        return jsonify({'error': 'An unexpected error occurred'}), 500
+        return jsonify({'error': f'Failed to start audio generation: {str(e)}'}), 500
 
 
 @tours_bp.route('/<uuid:tour_id>/apply-location-to-sites', methods=['POST'])

@@ -5,9 +5,12 @@ import logging
 import requests
 import hashlib
 import uuid
+import time
+from datetime import datetime
 from flask import current_app
 from app import db
 from app.models.audio_cache import AudioCache
+from app.models.ai_trace import AITrace
 from app.services.s3_service import upload_file_to_s3
 
 logger = logging.getLogger(__name__)
@@ -16,22 +19,27 @@ logger = logging.getLogger(__name__)
 ELEVEN_LABS_API_URL = "https://api.elevenlabs.io/v1"
 
 
-def generate_audio(text, voice_id=None):
+def generate_audio(text, voice_id=None, user_id=None):
     """
-    Generate audio from text using Eleven Labs API with caching.
+    Generate audio from text using Eleven Labs API with caching and AI tracing.
 
     Args:
         text: The text to convert to speech
         voice_id: The ID of the Eleven Labs voice to use (default: from config)
+        user_id: Optional user ID for tracking
 
     Returns:
         dict: {
             'status': 'success' | 'error',
             'audio_url': S3 URL of the audio file (if success),
             'from_cache': bool (if success),
-            'error': error message (if error)
+            'error': error message (if error),
+            'trace_id': UUID of the AI trace record (if not from cache)
         }
     """
+    trace = None
+    start_time = time.time()
+
     try:
         # Validate text
         if not text or not text.strip():
@@ -61,6 +69,18 @@ def generate_audio(text, voice_id=None):
 
         # Not cached, generate new audio
         logger.info("Audio not found in cache, generating new audio")
+
+        # Create AI trace for this TTS request
+        trace = AITrace(
+            prompt_name='tts_generation',
+            provider='elevenlabs',
+            model='eleven_multilingual_v2',
+            user_prompt=text[:1000],  # Truncate to first 1000 chars for logging
+            user_id=user_id,
+            status='pending'
+        )
+        db.session.add(trace)
+        db.session.commit()  # Commit now to get the trace ID
 
         # Get API key
         api_key = current_app.config.get('ELEVEN_LABS_API_KEY')
@@ -96,23 +116,54 @@ def generate_audio(text, voice_id=None):
         logger.info(f"Making Eleven Labs API request with timeout {timeout}s")
 
         # Make the API request
+        api_start_time = time.time()
         try:
             response = requests.post(url, json=data, headers=headers, timeout=timeout)
             response.raise_for_status()
+            api_duration = time.time() - api_start_time
 
-            logger.info(f"Eleven Labs API response received: {response.status_code}")
+            logger.info(f"Eleven Labs API response received: {response.status_code} in {api_duration:.2f}s")
+
+            # Update trace with success metadata
+            if trace:
+                # Calculate approximate character count and cost
+                char_count = len(text)
+                # ElevenLabs pricing is ~$0.30 per 1K characters for multilingual v2
+                estimated_cost = (char_count / 1000) * 0.30
+
+                trace.trace_metadata = {
+                    'characters': char_count,
+                    'estimated_cost_usd': round(estimated_cost, 4),
+                    'latency_seconds': round(api_duration, 2),
+                    'timeout_seconds': timeout,
+                    'voice_id': voice_id,
+                    'response_status': response.status_code
+                }
+                trace.status = 'success'
 
         except requests.exceptions.Timeout:
             logger.error(f"Eleven Labs API request timed out after {timeout}s")
+            if trace:
+                trace.status = 'error'
+                trace.error_message = f'API timeout after {timeout}s'
+                trace.completed_at = datetime.utcnow()
+                db.session.commit()
             return {
                 'status': 'error',
-                'error': 'Audio generation timed out'
+                'error': 'Audio generation timed out',
+                'trace_id': str(trace.id) if trace else None
             }
         except requests.exceptions.RequestException as e:
             logger.error(f"Eleven Labs API request failed: {e}")
+            if trace:
+                trace.status = 'error'
+                trace.error_message = str(e)
+                trace.completed_at = datetime.utcnow()
+                db.session.commit()
             return {
                 'status': 'error',
-                'error': f'Failed to generate audio: {str(e)}'
+                'error': f'Failed to generate audio: {str(e)}',
+                'trace_id': str(trace.id) if trace else None
             }
 
         # Upload audio to S3
@@ -124,9 +175,15 @@ def generate_audio(text, voice_id=None):
 
         if not s3_url:
             logger.error("Failed to upload audio to S3")
+            if trace:
+                trace.status = 'error'
+                trace.error_message = 'Failed to upload audio to S3'
+                trace.completed_at = datetime.utcnow()
+                db.session.commit()
             return {
                 'status': 'error',
-                'error': 'Failed to upload audio to storage'
+                'error': 'Failed to upload audio to storage',
+                'trace_id': str(trace.id) if trace else None
             }
 
         # Cache the audio URL
@@ -140,6 +197,17 @@ def generate_audio(text, voice_id=None):
         db.session.add(audio_cache)
 
         try:
+            # Complete the trace
+            if trace:
+                total_duration = time.time() - start_time
+                if trace.trace_metadata:
+                    trace.trace_metadata['total_duration_seconds'] = round(total_duration, 2)
+                    trace.trace_metadata['s3_upload_duration'] = round(
+                        total_duration - trace.trace_metadata.get('latency_seconds', 0), 2
+                    )
+                trace.response = f"Audio file uploaded to S3: {file_name}"
+                trace.completed_at = datetime.utcnow()
+
             db.session.commit()
             logger.info(f"Audio generated and cached successfully: {s3_url[:80]}...")
         except Exception as commit_error:
@@ -153,7 +221,8 @@ def generate_audio(text, voice_id=None):
                 return {
                     'status': 'success',
                     'audio_url': cached_audio.audio_url,
-                    'from_cache': True
+                    'from_cache': True,
+                    'trace_id': str(trace.id) if trace else None
                 }
             # If still not found, return the URL we generated anyway
             logger.warning("Cache check after race condition failed, returning generated URL")
@@ -161,13 +230,19 @@ def generate_audio(text, voice_id=None):
         return {
             'status': 'success',
             'audio_url': s3_url,
-            'from_cache': False
+            'from_cache': False,
+            'trace_id': str(trace.id) if trace else None
         }
 
     except Exception as e:
         logger.error(f"Error in generate_audio: {e}", exc_info=True)
+        if trace:
+            trace.status = 'error'
+            trace.error_message = f'Unexpected error: {str(e)}'
+            trace.completed_at = datetime.utcnow()
         db.session.rollback()
         return {
             'status': 'error',
-            'error': f'An unexpected error occurred: {str(e)}'
+            'error': f'An unexpected error occurred: {str(e)}',
+            'trace_id': str(trace.id) if trace else None
         }

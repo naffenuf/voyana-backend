@@ -18,6 +18,18 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis (for Celery broker and result backend)
+  redis:
+    image: redis:7-alpine
+    container_name: voyana-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   # Flask Application
   app:
     build:
@@ -29,6 +41,8 @@ services:
     environment:
       - FLASK_ENV=development
       - DATABASE_URL=postgresql://voyana:voyana_dev_pass@db:5432/voyana_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
     env_file:
       - .env
     volumes:
@@ -37,10 +51,37 @@ services:
       - ./migrations:/app/migrations
       - ./tests:/app/tests
       - ./remote-config.json:/app/remote-config.json
+      - ./celery_worker.py:/app/celery_worker.py
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     command: flask run --host=0.0.0.0 --port=5000 --reload
+
+  # Celery Worker (for background tasks)
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: voyana-celery-worker
+    environment:
+      - FLASK_ENV=development
+      - DATABASE_URL=postgresql://voyana:voyana_dev_pass@db:5432/voyana_db
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    env_file:
+      - .env
+    volumes:
+      # Mount source code for hot reload during development
+      - ./app:/app/app
+      - ./celery_worker.py:/app/celery_worker.py
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A celery_worker.celery_app worker --loglevel=info --concurrency=2
 
 volumes:
   postgres_data:

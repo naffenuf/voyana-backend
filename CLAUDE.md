@@ -39,6 +39,8 @@ API routes are organized into focused blueprints:
 - `TourSite` - Many-to-many junction table
 - `Feedback` - User feedback on tours/sites (ratings, issues, comments, suggestions, photos)
 - `AudioCache` - TTS caching by text hash
+- `BackgroundJob` - Async task tracking (Celery jobs)
+- `AITrace` - AI API call logging (OpenAI, Grok, ElevenLabs)
 
 **Important Patterns:**
 - Use `db.session` for all database operations
@@ -96,6 +98,78 @@ current_app.logger.error('Error here')
 ```
 
 All logs go to stdout, captured by Docker/cloud platform.
+
+### Background Jobs (Celery)
+
+**Architecture:**
+- **Redis**: Message broker for Celery task queue
+- **Celery Worker**: Background worker processing long-running tasks
+- **BackgroundJob Model**: Database tracking of async jobs with progress
+
+**When to Use Async Processing:**
+- Operations that take > 30 seconds (risk of HTTP timeout)
+- Bulk operations (generating audio for multiple sites)
+- Resource-intensive tasks (image processing, report generation)
+
+**Pattern for Creating Background Jobs:**
+```python
+from app.models.background_job import BackgroundJob
+from celery_worker import my_task
+import uuid
+
+# Create job record
+job_id = uuid.uuid4()
+job = BackgroundJob(
+    id=job_id,
+    job_type='task_name',
+    parameters={'param1': 'value'},
+    status='pending',
+    user_id=user_id
+)
+db.session.add(job)
+db.session.commit()
+
+# Trigger Celery task
+task = my_task.apply_async(args=[str(job_id), ...])
+
+# Return 202 Accepted with job ID
+return jsonify({
+    'jobId': str(job_id),
+    'status': 'pending',
+    'message': 'Task started. Use /api/jobs/<jobId> to check status.'
+}), 202
+```
+
+**Job Status Polling:**
+```python
+# GET /api/jobs/<job_id>
+{
+    "jobId": "uuid",
+    "jobType": "tour_audio_generation",
+    "status": "started",  # pending, started, success, failed
+    "progress": 45,  # 0-100
+    "progressMessage": "Processing site 5/10",
+    "result": {...},  # populated when status=success
+    "errorMessage": "...",  # populated when status=failed
+}
+```
+
+**Current Background Tasks:**
+- `generate_audio_for_tour` - Bulk TTS audio generation for tour sites (admin use)
+
+**Monitoring Celery:**
+```bash
+# View worker logs
+docker-compose logs celery-worker -f
+
+# Check Redis connection
+docker-compose exec redis redis-cli ping
+
+# Monitor tasks
+docker-compose exec app python
+>>> from celery_worker import celery_app
+>>> celery_app.control.inspect().active()
+```
 
 ## Development Workflow
 
