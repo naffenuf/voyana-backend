@@ -37,10 +37,6 @@ matplotlib==3.8.2
 # Production Server
 gunicorn==21.2.0
 
-# Background Tasks
-celery==5.3.4
-redis==5.0.1
-
 # Utilities
 python-dotenv==1.0.0
 pytz==2023.3
