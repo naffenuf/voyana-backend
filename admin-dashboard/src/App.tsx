@@ -1,6 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
+import toast from 'react-hot-toast';
+import { useEffect } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
 import Layout from './components/Layout';
 import AdminRoute from './components/AdminRoute';
@@ -94,6 +96,23 @@ function AppRoutes() {
 }
 
 function App() {
+  useEffect(() => {
+    // Dismiss all toasts on click or scroll
+    const dismissToasts = () => {
+      toast.dismiss();
+    };
+
+    // Add event listeners
+    window.addEventListener('click', dismissToasts);
+    window.addEventListener('scroll', dismissToasts);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('click', dismissToasts);
+      window.removeEventListener('scroll', dismissToasts);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -103,7 +122,7 @@ function App() {
           <Toaster
             position="top-right"
             toastOptions={{
-              duration: 4000,
+              duration: Infinity,
               style: {
                 background: '#363636',
                 color: '#fff',
