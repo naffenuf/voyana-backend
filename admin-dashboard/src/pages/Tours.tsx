@@ -5,18 +5,8 @@ import toast from 'react-hot-toast';
 import { useAuth } from '../lib/auth';
 import { toursApi, adminToursApi } from '../lib/api';
 import { getValidationSummary } from '../lib/validation';
+import PublishTourDialog from '../components/PublishTourDialog';
 import type { Tour } from '../types';
-
-// Helper function to get status display info
-function getStatusDisplay(status: string) {
-  const statusMap: Record<string, { label: string; className: string }> = {
-    draft: { label: 'Draft', className: 'bg-gray-100 text-gray-600' },
-    ready: { label: 'Ready for Review', className: 'bg-blue-100 text-blue-700' },
-    published: { label: 'Published', className: 'bg-[#944F2E] text-white' },
-    archived: { label: 'Archived', className: 'bg-gray-200 text-gray-500' },
-  };
-  return statusMap[status] || { label: status, className: 'bg-gray-100 text-gray-600' };
-}
 
 export default function Tours() {
   const { isAdmin } = useAuth();
@@ -26,6 +16,7 @@ export default function Tours() {
   const [cityFilter, setCityFilter] = useState('');
   const [page, setPage] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
+  const [publishDialogTour, setPublishDialogTour] = useState<Tour | null>(null);
   const toursPerPage = 20;
 
   // Use admin API if user is admin, otherwise regular API
@@ -60,6 +51,18 @@ export default function Tours() {
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to delete tour');
+    },
+  });
+
+  const publishMutation = useMutation({
+    mutationFn: (id: string) => toursApi.update(id, { status: 'published' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tours'] });
+      toast.success('Tour published successfully');
+      setPublishDialogTour(null);
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.error || 'Failed to publish tour');
     },
   });
 
@@ -247,15 +250,20 @@ export default function Tours() {
                           </span>
                         );
                       })()}
-                      {/* Status Badge */}
-                      {(() => {
-                        const statusDisplay = getStatusDisplay(tour.status);
-                        return (
-                          <span className={`px-3 py-1 text-xs font-medium rounded-full ${statusDisplay.className}`}>
-                            {statusDisplay.label}
-                          </span>
-                        );
-                      })()}
+                      {/* Publish Button */}
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          setPublishDialogTour(tour);
+                        }}
+                        className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
+                          tour.status === 'published'
+                            ? 'bg-[#944F2E] text-white border-[#944F2E] cursor-default'
+                            : 'bg-white hover:bg-[#944F2E] hover:text-white text-[#944F2E] border-[#944F2E]'
+                        }`}
+                      >
+                        {tour.status === 'published' ? 'Published' : 'Publish'}
+                      </button>
                       <button
                         onClick={(e) => {
                           e.preventDefault();
@@ -312,6 +320,17 @@ export default function Tours() {
             </div>
           )}
         </div>
+      )}
+
+      {/* Publish Dialog */}
+      {publishDialogTour && (
+        <PublishTourDialog
+          tour={publishDialogTour}
+          isOpen={!!publishDialogTour}
+          onClose={() => setPublishDialogTour(null)}
+          onConfirm={() => publishMutation.mutate(publishDialogTour.id)}
+          isPending={publishMutation.isPending}
+        />
       )}
     </div>
   );
