@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 ELEVEN_LABS_API_URL = "https://api.elevenlabs.io/v1"
 
 
-def generate_audio(text, voice_id=None, user_id=None):
+def generate_audio(text, voice_id=None, user_id=None, old_audio_url=None):
     """
     Generate audio from text using Eleven Labs API with caching and AI tracing.
 
@@ -27,6 +27,7 @@ def generate_audio(text, voice_id=None, user_id=None):
         text: The text to convert to speech
         voice_id: The ID of the Eleven Labs voice to use (default: from config)
         user_id: Optional user ID for tracking
+        old_audio_url: Optional URL of existing audio file to delete after successful generation
 
     Returns:
         dict: {
@@ -226,6 +227,12 @@ def generate_audio(text, voice_id=None, user_id=None):
                 }
             # If still not found, return the URL we generated anyway
             logger.warning("Cache check after race condition failed, returning generated URL")
+
+        # Delete old audio file from S3 if provided and new audio was generated (not from cache)
+        if old_audio_url:
+            from app.services.s3_service import delete_file_from_s3
+            logger.info(f"Deleting old audio file from S3: {old_audio_url[:80]}...")
+            delete_file_from_s3(old_audio_url)
 
         return {
             'status': 'success',

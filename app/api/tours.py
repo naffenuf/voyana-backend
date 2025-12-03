@@ -678,17 +678,6 @@ def generate_audio_for_tour_sites(tour_id):
 
         for tour_site in tour_sites:
             site = tour_site.site
-            # Skip if site already has audio
-            if site.audio_url:
-                current_app.logger.info(f'Site {site.id} already has audio, skipping')
-                results.append({
-                    'siteId': str(site.id),
-                    'siteTitle': site.title,
-                    'status': 'skipped',
-                    'reason': 'Already has audio URL'
-                })
-                sites_skipped += 1
-                continue
 
             # Skip if site has no description
             if not site.description or not site.description.strip():
@@ -703,14 +692,18 @@ def generate_audio_for_tour_sites(tour_id):
                 continue
 
             # Generate audio for this site
-            current_app.logger.info(f'Generating audio for site {site.id}: {site.title}')
+            has_existing_audio = bool(site.audio_url)
+            action = 'Regenerating' if has_existing_audio else 'Generating'
+            current_app.logger.info(f'{action} audio for site {site.id}: {site.title}')
 
             # Add a small delay between requests to avoid rate limiting
             # Skip delay for first site (sites_processed == 0 and sites_skipped == 0)
             if sites_processed > 0 or sites_skipped > 0:
                 time.sleep(1)  # 1 second delay between audio generation requests
 
-            audio_result = generate_audio(site.description, user_id=user_id)
+            # Capture old URL for deletion (will be deleted by generate_audio after success)
+            old_audio_url = site.audio_url if has_existing_audio else None
+            audio_result = generate_audio(site.description, user_id=user_id, old_audio_url=old_audio_url)
 
             if audio_result['status'] == 'success':
                 # Update site with audio URL

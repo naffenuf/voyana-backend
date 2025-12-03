@@ -692,13 +692,13 @@ export default function TourDetail() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (confirm('This will generate audio for ALL sites without audio. Continue?')) {
+                          if (confirm('This will generate/regenerate audio for ALL sites in this tour. Continue?')) {
                             generateAudioMutation.mutate();
                           }
                         }}
                         disabled={!tourData?.sites || tourData.sites.length === 0 || generateAudioMutation.isPending || (!isAdmin && formData.status === 'ready')}
                         className="px-3 py-1.5 bg-[#69626d] hover:bg-[#534e56] text-white rounded-lg transition-colors flex items-center gap-2 text-xs font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="Generate audio for all sites that don't have audio"
+                        title="Generate audio for all sites (regenerates existing)"
                       >
                         {generateAudioMutation.isPending ? (
                           <>
