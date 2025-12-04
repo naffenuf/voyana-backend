@@ -323,6 +323,10 @@ export interface Neighborhood {
   description: string;
   createdAt: string;
   updatedAt: string;
+  // Optional fields returned on update
+  toursUpdated?: number;
+  sitesUpdated?: number;
+  merged?: boolean;
 }
 
 export interface NeighborhoodFilters {

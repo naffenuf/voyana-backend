@@ -605,6 +605,17 @@ export const adminNeighborhoodsApi = {
     return response.data;
   },
 
+  rename: async (data: {
+    oldCity: string;
+    oldNeighborhood: string;
+    newCity: string;
+    newNeighborhood: string;
+    description?: string;
+  }) => {
+    const response = await api.put<Neighborhood>('/api/admin/neighborhoods/rename', data);
+    return response.data;
+  },
+
   delete: async (id: number) => {
     await api.delete(`/api/admin/neighborhoods/${id}`);
   },

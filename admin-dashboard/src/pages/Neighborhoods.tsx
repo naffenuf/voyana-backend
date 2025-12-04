@@ -44,19 +44,45 @@ export default function Neighborhoods() {
     mutationFn: (data: { city: string; neighborhood: string; description: string }) =>
       adminNeighborhoodsApi.create(data),
     onSuccess: () => {
+      console.log('Create success');
       queryClient.invalidateQueries({ queryKey: ['neighborhoods-all-from-tours'] });
       setShowCreateForm(false);
+      setEditingNeighborhood(null);
       setFormData({ city: '', neighborhood: '', description: '' });
+      alert('✅ Neighborhood saved successfully!');
+    },
+    onError: (error: any) => {
+      console.error('Create error', error);
+      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+      alert(`❌ Failed to save: ${errorMsg}`);
     },
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: { id: number; updates: { city?: string; neighborhood?: string; description?: string } }) =>
       adminNeighborhoodsApi.update(data.id, data.updates),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      console.log('Update success', response);
       queryClient.invalidateQueries({ queryKey: ['neighborhoods-all-from-tours'] });
       setEditingNeighborhood(null);
       setFormData({ city: '', neighborhood: '', description: '' });
+
+      // Show success message with update counts
+      const toursUpdated = response.toursUpdated || 0;
+      const sitesUpdated = response.sitesUpdated || 0;
+      const merged = response.merged || false;
+
+      if (merged) {
+        alert(`✅ Merged with existing neighborhood!\n\nUpdated:\n• ${toursUpdated} tours\n• ${sitesUpdated} sites`);
+      } else if (toursUpdated > 0 || sitesUpdated > 0) {
+        alert(`✅ Neighborhood updated successfully!\n\nUpdated:\n• ${toursUpdated} tours\n• ${sitesUpdated} sites`);
+      } else {
+        alert('✅ Neighborhood description updated!');
+      }
+    },
+    onError: (error) => {
+      console.error('Update error', error);
+      alert(`❌ Failed to update: ${error.message || 'Unknown error'}`);
     },
   });
 
@@ -68,16 +94,71 @@ export default function Neighborhoods() {
   });
 
   const handleCreate = () => {
-    if (formData.city && formData.neighborhood && formData.description) {
+    if (formData.city && formData.neighborhood) {
       createMutation.mutate(formData);
     }
   };
 
+  const renameMutation = useMutation({
+    mutationFn: (data: {
+      oldCity: string;
+      oldNeighborhood: string;
+      newCity: string;
+      newNeighborhood: string;
+      description?: string;
+    }) => adminNeighborhoodsApi.rename(data),
+    onSuccess: (response) => {
+      console.log('Rename success', response);
+      queryClient.invalidateQueries({ queryKey: ['neighborhoods-all-from-tours'] });
+      setEditingNeighborhood(null);
+      setFormData({ city: '', neighborhood: '', description: '' });
+
+      // Show success message with update counts
+      const toursUpdated = response.toursUpdated || 0;
+      const sitesUpdated = response.sitesUpdated || 0;
+      const merged = response.merged || false;
+
+      if (merged) {
+        alert(`✅ Consolidated neighborhoods!\n\nUpdated:\n• ${toursUpdated} tours\n• ${sitesUpdated} sites`);
+      } else if (toursUpdated > 0 || sitesUpdated > 0) {
+        alert(`✅ Neighborhood renamed successfully!\n\nUpdated:\n• ${toursUpdated} tours\n• ${sitesUpdated} sites`);
+      } else {
+        alert('✅ Neighborhood saved!');
+      }
+    },
+    onError: (error: any) => {
+      console.error('Rename error', error);
+      const errorMsg = error.response?.data?.error || error.message || 'Unknown error';
+      alert(`❌ Failed to save: ${errorMsg}`);
+    },
+  });
+
   const handleUpdate = () => {
-    if (editingNeighborhood && editingNeighborhood.descriptionId && formData.city && formData.neighborhood && formData.description) {
-      updateMutation.mutate({
-        id: editingNeighborhood.descriptionId,
-        updates: formData,
+    console.log('handleUpdate called', { editingNeighborhood, formData });
+    if (editingNeighborhood && formData.city && formData.neighborhood) {
+      if (!editingNeighborhood.descriptionId) {
+        // No description exists - use rename endpoint (handles consolidation/merge)
+        console.log('Using rename endpoint for neighborhood without description');
+        renameMutation.mutate({
+          oldCity: editingNeighborhood.city,
+          oldNeighborhood: editingNeighborhood.neighborhood,
+          newCity: formData.city,
+          newNeighborhood: formData.neighborhood,
+          description: formData.description,
+        });
+      } else {
+        // Description exists - use update endpoint (also handles cascading)
+        console.log('Updating existing description', editingNeighborhood.descriptionId);
+        updateMutation.mutate({
+          id: editingNeighborhood.descriptionId,
+          updates: formData,
+        });
+      }
+    } else {
+      console.log('Validation failed', {
+        hasEditingNeighborhood: !!editingNeighborhood,
+        hasCity: !!formData.city,
+        hasNeighborhood: !!formData.neighborhood
       });
     }
   };
@@ -90,16 +171,6 @@ export default function Neighborhoods() {
       description: neighborhood.description || '',
     });
     setShowCreateForm(false);
-  };
-
-  const handleAdd = (neighborhood: NeighborhoodFromTour) => {
-    setFormData({
-      city: neighborhood.city,
-      neighborhood: neighborhood.neighborhood,
-      description: '',
-    });
-    setShowCreateForm(true);
-    setEditingNeighborhood(null);
   };
 
   const handleDelete = (id: number) => {
@@ -148,6 +219,14 @@ export default function Neighborhoods() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">
             {editingNeighborhood ? 'Edit Neighborhood' : 'Create Neighborhood'}
           </h2>
+          {editingNeighborhood && editingNeighborhood.tourCount > 0 && (
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> Changing the city or neighborhood name will automatically update all associated tours and sites.
+                This neighborhood currently has <strong>{editingNeighborhood.tourCount} tour(s)</strong>.
+              </p>
+            </div>
+          )}
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -175,11 +254,11 @@ export default function Neighborhoods() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Description *
+                Description
               </label>
               <textarea
                 rows={4}
-                placeholder="Enter neighborhood description..."
+                placeholder="Enter neighborhood description (optional)..."
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#8B6F47] focus:border-transparent resize-none"
@@ -188,10 +267,10 @@ export default function Neighborhoods() {
             <div className="flex gap-3">
               <button
                 onClick={editingNeighborhood ? handleUpdate : handleCreate}
-                disabled={!formData.city || !formData.neighborhood || !formData.description}
+                disabled={!formData.city || !formData.neighborhood}
                 className="px-4 py-2 bg-[#8B6F47] hover:bg-[#6F5838] text-white font-medium rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {editingNeighborhood ? 'Update' : 'Create'}
+                Save
               </button>
               <button
                 onClick={handleCancel}
@@ -246,25 +325,25 @@ export default function Neighborhoods() {
         ) : filteredNeighborhoods.length > 0 ? (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       City
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="w-52 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Neighborhood
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="w-16 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Tours
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="w-36 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Status
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Description
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="w-32 px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -272,55 +351,46 @@ export default function Neighborhoods() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredNeighborhoods.map((neighborhood, index) => (
                     <tr key={`${neighborhood.city}-${neighborhood.neighborhood}-${index}`} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900 truncate">
                           {neighborhood.city}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{neighborhood.neighborhood}</div>
+                      <td className="px-4 py-3">
+                        <div className="text-sm text-gray-900 truncate">{neighborhood.neighborhood}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3 whitespace-nowrap text-center">
                         <div className="text-sm text-gray-600">{neighborhood.tourCount}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         {neighborhood.hasDescription ? (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            Has Description
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            Has Desc
                           </span>
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            Needs Description
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            No Desc
                           </span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
-                        <div className="text-sm text-gray-600 max-w-md truncate">
+                      <td className="px-4 py-3">
+                        <div className="text-sm text-gray-600 truncate">
                           {neighborhood.description || '-'}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        {neighborhood.hasDescription ? (
-                          <>
-                            <button
-                              onClick={() => handleEdit(neighborhood)}
-                              className="text-[#8B6F47] hover:text-[#6F5838] font-medium mr-4"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => neighborhood.descriptionId && handleDelete(neighborhood.descriptionId)}
-                              className="text-red-600 hover:text-red-800 font-medium"
-                            >
-                              Delete
-                            </button>
-                          </>
-                        ) : (
+                      <td className="px-4 py-3 whitespace-nowrap text-sm">
+                        <button
+                          onClick={() => handleEdit(neighborhood)}
+                          className="text-[#8B6F47] hover:text-[#6F5838] font-medium mr-3"
+                        >
+                          Edit
+                        </button>
+                        {neighborhood.hasDescription && (
                           <button
-                            onClick={() => handleAdd(neighborhood)}
-                            className="text-[#8B6F47] hover:text-[#6F5838] font-medium"
+                            onClick={() => neighborhood.descriptionId && handleDelete(neighborhood.descriptionId)}
+                            className="text-red-600 hover:text-red-800 font-medium"
                           >
-                            + Add Description
+                            Delete
                           </button>
                         )}
                       </td>
