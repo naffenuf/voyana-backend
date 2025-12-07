@@ -579,11 +579,6 @@ export const adminNeighborhoodsApi = {
         city: string;
         neighborhood: string;
         tourCount: number;
-        hasDescription: boolean;
-        description: string | null;
-        descriptionId: number | null;
-        createdAt?: string;
-        updatedAt?: string;
       }>;
       total: number;
     }>('/api/admin/neighborhoods/all-from-tours');
@@ -610,9 +605,15 @@ export const adminNeighborhoodsApi = {
     oldNeighborhood: string;
     newCity: string;
     newNeighborhood: string;
-    description?: string;
   }) => {
-    const response = await api.put<Neighborhood>('/api/admin/neighborhoods/rename', data);
+    const response = await api.put<{
+      toursUpdated: number;
+      sitesUpdated: number;
+      oldCity: string;
+      oldNeighborhood: string;
+      newCity: string;
+      newNeighborhood: string;
+    }>('/api/admin/neighborhoods/rename', data);
     return response.data;
   },
 

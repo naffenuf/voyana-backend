@@ -18,21 +18,20 @@ admin_neighborhoods_bp = Blueprint('admin_neighborhoods', __name__)
 @admin_required()
 def get_all_neighborhoods_from_tours():
     """
-    Get all unique city/neighborhood combinations from tours,
-    with their description status (admin only).
+    Get all unique city/neighborhood combinations from tours (admin only).
 
     Returns:
-        [
-            {
-                "city": "New York",
-                "neighborhood": "Chinatown",
-                "hasDescription": true,
-                "description": "Historic neighborhood..." (if exists),
-                "descriptionId": 123 (if exists),
-                "tourCount": 5
-            },
-            ...
-        ]
+        {
+            "neighborhoods": [
+                {
+                    "city": "New York",
+                    "neighborhood": "Chelsea",
+                    "tourCount": 5
+                },
+                ...
+            ],
+            "total": 10
+        }
     """
     try:
         # Get all distinct city/neighborhood from tours with counts
@@ -48,36 +47,14 @@ def get_all_neighborhoods_from_tours():
             Tour.neighborhood
         ).all()
 
-        # Get all neighborhood descriptions
-        descriptions_dict = {}
-        descriptions = NeighborhoodDescription.query.all()
-        for desc in descriptions:
-            key = (desc.city, desc.neighborhood)
-            descriptions_dict[key] = desc
-
-        # Combine the data
+        # Build simple result list
         result = []
         for city, neighborhood, tour_count in tour_neighborhoods:
-            key = (city, neighborhood)
-            desc = descriptions_dict.get(key)
-
-            item = {
+            result.append({
                 'city': city,
                 'neighborhood': neighborhood,
-                'tourCount': tour_count,
-                'hasDescription': desc is not None
-            }
-
-            if desc:
-                item['description'] = desc.description
-                item['descriptionId'] = desc.id
-                item['createdAt'] = desc.created_at.isoformat()
-                item['updatedAt'] = desc.updated_at.isoformat()
-            else:
-                item['description'] = None
-                item['descriptionId'] = None
-
-            result.append(item)
+                'tourCount': tour_count
+            })
 
         # Sort by city, then neighborhood
         result.sort(key=lambda x: (x['city'], x['neighborhood']))
@@ -399,21 +376,28 @@ def update_neighborhood(neighborhood_id):
 @admin_required()
 def rename_neighborhood():
     """
-    Rename/consolidate a neighborhood with cascading updates (admin only).
+    Rename/consolidate a neighborhood across all tours and sites (admin only).
 
-    Use this when renaming a neighborhood that doesn't have a description yet.
-    This will handle merging if the new name already exists.
+    This endpoint ONLY updates tour and site records. It does not create or manage
+    neighborhood descriptions.
 
     Request body:
         {
             "oldCity": "New York",
-            "oldNeighborhood": "Upper East Side - Central Park South",
+            "oldNeighborhood": "Chelsea North",
             "newCity": "New York",
-            "newNeighborhood": "Upper East Side",
-            "description": "Optional description text"
+            "newNeighborhood": "Chelsea"
         }
 
-    Returns same format as regular update with toursUpdated, sitesUpdated, merged fields.
+    Returns:
+        {
+            "toursUpdated": 5,
+            "sitesUpdated": 12,
+            "oldCity": "New York",
+            "oldNeighborhood": "Chelsea North",
+            "newCity": "New York",
+            "newNeighborhood": "Chelsea"
+        }
     """
     data = request.get_json()
     if not data:
@@ -424,159 +408,51 @@ def rename_neighborhood():
     old_neighborhood = data.get('oldNeighborhood', '').strip()
     new_city = data.get('newCity', '').strip()
     new_neighborhood = data.get('newNeighborhood', '').strip()
-    new_description = data.get('description', '').strip()
 
     if not old_city or not old_neighborhood or not new_city or not new_neighborhood:
         return jsonify({'error': 'oldCity, oldNeighborhood, newCity, and newNeighborhood are required'}), 400
 
+    # Check if no change
+    if old_city == new_city and old_neighborhood == new_neighborhood:
+        return jsonify({'error': 'Old and new neighborhood are the same'}), 400
+
     try:
-        # Track statistics
-        tours_updated = 0
-        sites_updated = 0
-        merged = False
+        current_app.logger.info(
+            f'Renaming neighborhood: {old_city}/{old_neighborhood} -> {new_city}/{new_neighborhood}'
+        )
 
-        # Check if old neighborhood name equals new (no rename, just adding description)
-        same_name = (old_city == new_city and old_neighborhood == new_neighborhood)
+        # Update all tours
+        tours_updated = Tour.query.filter(
+            Tour.city == old_city,
+            Tour.neighborhood == old_neighborhood
+        ).update(
+            {Tour.city: new_city, Tour.neighborhood: new_neighborhood},
+            synchronize_session=False
+        )
 
-        if same_name:
-            # Just adding/updating description for existing neighborhood
-            # Check if description already exists
-            existing = NeighborhoodDescription.query.filter_by(
-                city=new_city,
-                neighborhood=new_neighborhood
-            ).first()
+        # Update all sites
+        sites_updated = Site.query.filter(
+            Site.city == old_city,
+            Site.neighborhood == old_neighborhood
+        ).update(
+            {Site.city: new_city, Site.neighborhood: new_neighborhood},
+            synchronize_session=False
+        )
 
-            if existing:
-                # Update existing description
-                if new_description:
-                    existing.description = new_description
-                db.session.commit()
-                result_neighborhood = existing
-                current_app.logger.info(f'Updated description for {new_city}/{new_neighborhood}')
-            else:
-                # Create new description
-                new_desc = NeighborhoodDescription(
-                    city=new_city,
-                    neighborhood=new_neighborhood,
-                    description=new_description
-                )
-                db.session.add(new_desc)
-                db.session.commit()
-                result_neighborhood = new_desc
-                current_app.logger.info(f'Created description for {new_city}/{new_neighborhood}')
+        db.session.commit()
 
-        else:
-            # Renaming neighborhood - check if target already exists
-            target_description = NeighborhoodDescription.query.filter_by(
-                city=new_city,
-                neighborhood=new_neighborhood
-            ).first()
+        current_app.logger.info(
+            f'Renamed successfully: {tours_updated} tours, {sites_updated} sites'
+        )
 
-            if target_description:
-                # MERGE SCENARIO - target exists
-                current_app.logger.info(
-                    f'Merging neighborhoods: {old_city}/{old_neighborhood} -> {new_city}/{new_neighborhood}'
-                )
-
-                # Update description if provided and target doesn't have one
-                if new_description and not target_description.description:
-                    target_description.description = new_description
-
-                # Update all tours
-                tours_updated = Tour.query.filter(
-                    Tour.city == old_city,
-                    Tour.neighborhood == old_neighborhood
-                ).update(
-                    {Tour.city: new_city, Tour.neighborhood: new_neighborhood},
-                    synchronize_session=False
-                )
-
-                # Update all sites
-                sites_updated = Site.query.filter(
-                    Site.city == old_city,
-                    Site.neighborhood == old_neighborhood
-                ).update(
-                    {Site.city: new_city, Site.neighborhood: new_neighborhood},
-                    synchronize_session=False
-                )
-
-                # Delete old description if it exists
-                old_description = NeighborhoodDescription.query.filter_by(
-                    city=old_city,
-                    neighborhood=old_neighborhood
-                ).first()
-
-                if old_description:
-                    db.session.delete(old_description)
-
-                db.session.commit()
-                merged = True
-                result_neighborhood = target_description
-
-                current_app.logger.info(
-                    f'Merged successfully: {tours_updated} tours, {sites_updated} sites'
-                )
-
-            else:
-                # NO CONFLICT - Simple rename
-                current_app.logger.info(
-                    f'Renaming neighborhood: {old_city}/{old_neighborhood} -> {new_city}/{new_neighborhood}'
-                )
-
-                # Update all tours
-                tours_updated = Tour.query.filter(
-                    Tour.city == old_city,
-                    Tour.neighborhood == old_neighborhood
-                ).update(
-                    {Tour.city: new_city, Tour.neighborhood: new_neighborhood},
-                    synchronize_session=False
-                )
-
-                # Update all sites
-                sites_updated = Site.query.filter(
-                    Site.city == old_city,
-                    Site.neighborhood == old_neighborhood
-                ).update(
-                    {Site.city: new_city, Site.neighborhood: new_neighborhood},
-                    synchronize_session=False
-                )
-
-                # Update or create description
-                old_description = NeighborhoodDescription.query.filter_by(
-                    city=old_city,
-                    neighborhood=old_neighborhood
-                ).first()
-
-                if old_description:
-                    # Update existing description
-                    old_description.city = new_city
-                    old_description.neighborhood = new_neighborhood
-                    if new_description:
-                        old_description.description = new_description
-                    result_neighborhood = old_description
-                else:
-                    # Create new description
-                    new_desc = NeighborhoodDescription(
-                        city=new_city,
-                        neighborhood=new_neighborhood,
-                        description=new_description
-                    )
-                    db.session.add(new_desc)
-                    result_neighborhood = new_desc
-
-                db.session.commit()
-
-                current_app.logger.info(
-                    f'Renamed successfully: {tours_updated} tours, {sites_updated} sites'
-                )
-
-        # Build response
-        response = result_neighborhood.to_dict()
-        response['toursUpdated'] = tours_updated
-        response['sitesUpdated'] = sites_updated
-        response['merged'] = merged
-
-        return jsonify(response), 200
+        return jsonify({
+            'toursUpdated': tours_updated,
+            'sitesUpdated': sites_updated,
+            'oldCity': old_city,
+            'oldNeighborhood': old_neighborhood,
+            'newCity': new_city,
+            'newNeighborhood': new_neighborhood
+        }), 200
 
     except Exception as e:
         db.session.rollback()
