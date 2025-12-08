@@ -112,8 +112,14 @@ export default function TourDetail() {
       queryClient.invalidateQueries({ queryKey: ['tours'] });
       queryClient.invalidateQueries({ queryKey: ['tour', id] });
       toast.success(isNew ? 'Tour created!' : 'Tour saved!');
-      setOriginalData(savedTour);
-      setHasUnsavedChanges(false);
+
+      // If this was a new tour, navigate to the created tour's detail page
+      if (isNew && savedTour.id) {
+        navigate(`/tours/${savedTour.id}`, { replace: true });
+      } else {
+        setOriginalData(savedTour);
+        setHasUnsavedChanges(false);
+      }
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to save tour');
