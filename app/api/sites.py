@@ -35,6 +35,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
 
 
 @sites_bp.route('', methods=['GET'])
+@jwt_required()
 def list_sites():
     """
     List all sites with optional filters.
@@ -67,8 +68,18 @@ def list_sites():
     limit = min(request.args.get('limit', 100, type=int), 500)  # Cap at 500
     offset = request.args.get('offset', 0, type=int)
 
+    # Get authenticated user
+    from flask_jwt_extended import get_jwt_identity, get_jwt
+    user_id = int(get_jwt_identity())
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
     # Build query
     query = Site.query
+
+    # Access control: admins see all, creators see only their own
+    if not is_admin:
+        query = query.filter(Site.owner_id == user_id)
 
     # Text search filter
     if search_text:
@@ -206,8 +217,13 @@ def create_site():
     except (ValueError, TypeError):
         return jsonify({'error': 'Invalid latitude or longitude'}), 400
 
+    # Get authenticated user ID
+    from flask_jwt_extended import get_jwt_identity
+    user_id = int(get_jwt_identity())
+
     # Create site
     site = Site(
+        owner_id=user_id,
         title=data['title'],
         description=data.get('description'),
         latitude=lat,

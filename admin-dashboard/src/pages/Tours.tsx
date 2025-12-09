@@ -8,8 +8,99 @@ import { getValidationSummary } from '../lib/validation';
 import PublishTourDialog from '../components/PublishTourDialog';
 import type { Tour } from '../types';
 
+// Tour list item component
+function TourListItem({
+  tour,
+  canEdit,
+  onPublish,
+  onDelete,
+  isDeleting
+}: {
+  tour: Tour;
+  canEdit: boolean;
+  onPublish?: (tour: Tour) => void;
+  onDelete?: (tour: Tour) => void;
+  isDeleting?: boolean;
+}) {
+  const validation = getValidationSummary(tour, tour.sites || []);
+
+  return (
+    <Link
+      to={`/tours/${tour.id}`}
+      className="block p-4 hover:bg-gray-50 transition-colors"
+    >
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-lg font-semibold text-gray-900 truncate">
+            {tour.name}
+          </h3>
+          <div className="mt-1 flex items-center gap-4 text-sm text-gray-600">
+            <span>
+              {tour.city && tour.neighborhood
+                ? `${tour.neighborhood}, ${tour.city}`
+                : tour.city || tour.neighborhood || 'No location'}
+            </span>
+            <span>•</span>
+            <span>
+              {tour.siteCount} {tour.siteCount === 1 ? 'site' : 'sites'}
+            </span>
+            {(tour.averageRating || tour.calculatedRating) && (
+              <>
+                <span>•</span>
+                <span>
+                  {(tour.averageRating || tour.calculatedRating)?.toFixed(1)} ★
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        {canEdit && (
+          <div className="flex items-center gap-3">
+            {/* Validation Badge */}
+            {validation.isValid ? (
+              <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-50 text-green-700 border border-green-200 flex items-center gap-1">
+                <span>✓</span>
+                Fully Populated
+              </span>
+            ) : (
+              <span className="px-3 py-1 text-xs font-medium rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                <span>⚠</span>
+                Incomplete
+              </span>
+            )}
+            {/* Publish Button */}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onPublish?.(tour);
+              }}
+              className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
+                tour.status === 'published'
+                  ? 'bg-[#944F2E] text-white border-[#944F2E] cursor-default'
+                  : 'bg-white hover:bg-[#944F2E] hover:text-white text-[#944F2E] border-[#944F2E]'
+              }`}
+            >
+              {tour.status === 'published' ? 'Published' : 'Publish'}
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onDelete?.(tour);
+              }}
+              disabled={isDeleting}
+              className="px-3 py-1.5 bg-white hover:bg-red-50 text-red-600 text-sm font-medium rounded-md border border-red-200 transition-colors disabled:opacity-50"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+    </Link>
+  );
+}
+
 export default function Tours() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -19,21 +110,52 @@ export default function Tours() {
   const [publishDialogTour, setPublishDialogTour] = useState<Tour | null>(null);
   const toursPerPage = 20;
 
-  // Use admin API if user is admin, otherwise regular API
-  const { data, isLoading } = useQuery({
-    queryKey: ['tours', search, statusFilter, cityFilter, page, isAdmin],
-    queryFn: () => {
-      const filters = {
-        search: search || undefined,
-        status: statusFilter || undefined,
-        city: cityFilter || undefined,
-        include_sites: 'true', // Include full site data for validation
-        limit: toursPerPage,
-        offset: (page - 1) * toursPerPage,
-      };
-      return isAdmin ? adminToursApi.list(filters) : toursApi.list(filters);
-    },
+  // Query 1: Your Tours (creators only)
+  const { data: ownToursData, isLoading: ownToursLoading } = useQuery({
+    queryKey: ['tours', 'own', search, statusFilter, cityFilter, page],
+    queryFn: () => toursApi.list({
+      search: search || undefined,
+      status: statusFilter || undefined,
+      city: cityFilter || undefined,
+      owner_id: user?.id,
+      include_sites: 'true',
+      limit: toursPerPage,
+      offset: (page - 1) * toursPerPage,
+    }),
+    enabled: !isAdmin,
   });
+
+  // Query 2: Other Published Tours (creators only)
+  const { data: otherToursData, isLoading: otherToursLoading } = useQuery({
+    queryKey: ['tours', 'other', search, cityFilter, page],
+    queryFn: () => toursApi.list({
+      search: search || undefined,
+      status: 'published',
+      city: cityFilter || undefined,
+      exclude_owner: user?.id,
+      include_sites: 'true',
+      limit: toursPerPage,
+      offset: (page - 1) * toursPerPage,
+    }),
+    enabled: !isAdmin,
+  });
+
+  // Query 3: Admin view (unchanged)
+  const { data: adminData, isLoading: adminLoading } = useQuery({
+    queryKey: ['tours', 'admin', search, statusFilter, cityFilter, page],
+    queryFn: () => adminToursApi.list({
+      search: search || undefined,
+      status: statusFilter || undefined,
+      city: cityFilter || undefined,
+      include_sites: 'true',
+      limit: toursPerPage,
+      offset: (page - 1) * toursPerPage,
+    }),
+    enabled: isAdmin,
+  });
+
+  const isLoading = isAdmin ? adminLoading : (ownToursLoading || otherToursLoading);
+  const data = isAdmin ? adminData : ownToursData;
 
   // Reset to page 1 when filters change
   const handleFilterChange = (setter: (value: string) => void) => (value: string) => {
@@ -201,94 +323,80 @@ export default function Tours() {
           </div>
 
           {/* Tours list */}
-          {data?.tours && data.tours.length > 0 ? (
-            <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-200">
-              {data.tours.map((tour) => (
+          {isAdmin ? (
+            // Admin: Single list
+            data?.tours && data.tours.length > 0 ? (
+              <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-200">
+                {data.tours.map((tour) => (
+                  <TourListItem
+                    key={tour.id}
+                    tour={tour}
+                    canEdit={true}
+                    onPublish={setPublishDialogTour}
+                    onDelete={handleDelete}
+                    isDeleting={deleteMutation.isPending}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No tours found</h3>
+                <p className="text-gray-600 mb-6">Get started by creating your first tour</p>
                 <Link
-                  key={tour.id}
-                  to={`/tours/${tour.id}`}
-                  className="block p-4 hover:bg-gray-50 transition-colors"
+                  to="/tours/new"
+                  className="inline-flex items-center px-6 py-2.5 bg-[#944F2E] hover:bg-[#7d4227] text-white rounded-lg font-medium transition-colors"
                 >
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-semibold text-gray-900 truncate">
-                        {tour.name}
-                      </h3>
-                      <div className="mt-1 flex items-center gap-4 text-sm text-gray-600">
-                        <span>
-                          {tour.city && tour.neighborhood
-                            ? `${tour.neighborhood}, ${tour.city}`
-                            : tour.city || tour.neighborhood || 'No location'}
-                        </span>
-                        <span>•</span>
-                        <span>
-                          {tour.siteCount} {tour.siteCount === 1 ? 'site' : 'sites'}
-                        </span>
-                        {(tour.averageRating || tour.calculatedRating) && (
-                          <>
-                            <span>•</span>
-                            <span>
-                              {(tour.averageRating || tour.calculatedRating)?.toFixed(1)} ★
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      {/* Validation Badge */}
-                      {(() => {
-                        const validation = getValidationSummary(tour, tour.sites || []);
-                        return validation.isValid ? (
-                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-green-50 text-green-700 border border-green-200 flex items-center gap-1">
-                            <span>✓</span>
-                            Fully Populated
-                          </span>
-                        ) : (
-                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
-                            <span>⚠</span>
-                            Incomplete
-                          </span>
-                        );
-                      })()}
-                      {/* Publish Button */}
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setPublishDialogTour(tour);
-                        }}
-                        className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors ${
-                          tour.status === 'published'
-                            ? 'bg-[#944F2E] text-white border-[#944F2E] cursor-default'
-                            : 'bg-white hover:bg-[#944F2E] hover:text-white text-[#944F2E] border-[#944F2E]'
-                        }`}
-                      >
-                        {tour.status === 'published' ? 'Published' : 'Publish'}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          handleDelete(tour);
-                        }}
-                        disabled={deleteMutation.isPending}
-                        className="px-3 py-1.5 bg-white hover:bg-red-50 text-red-600 text-sm font-medium rounded-md border border-red-200 transition-colors disabled:opacity-50"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
+                  Create Tour
                 </Link>
-              ))}
-            </div>
+              </div>
+            )
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No tours found</h3>
-              <p className="text-gray-600 mb-6">Get started by creating your first tour</p>
-              <Link
-                to="/tours/new"
-                className="inline-flex items-center px-6 py-2.5 bg-[#944F2E] hover:bg-[#7d4227] text-white rounded-lg font-medium transition-colors"
-              >
-                Create Tour
-              </Link>
+            // Creator: Two sections
+            <div className="space-y-8">
+              {/* Section 1: Your Tours */}
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-3">Your Tours</h2>
+                {ownToursData?.tours && ownToursData.tours.length > 0 ? (
+                  <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-200">
+                    {ownToursData.tours.map((tour) => (
+                      <TourListItem
+                        key={tour.id}
+                        tour={tour}
+                        canEdit={true}
+                        onPublish={setPublishDialogTour}
+                        onDelete={handleDelete}
+                        isDeleting={deleteMutation.isPending}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                    <p className="text-gray-600 mb-4">You haven't created any tours yet</p>
+                    <Link
+                      to="/tours/new"
+                      className="inline-flex items-center px-6 py-2.5 bg-[#944F2E] hover:bg-[#7d4227] text-white rounded-lg font-medium transition-colors"
+                    >
+                      Create Tour
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 2: Other Published Tours */}
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-3">Other Tours</h2>
+                {otherToursData?.tours && otherToursData.tours.length > 0 ? (
+                  <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-200">
+                    {otherToursData.tours.map((tour) => (
+                      <TourListItem key={tour.id} tour={tour} canEdit={false} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                    <p className="text-gray-600">No published tours from other creators</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

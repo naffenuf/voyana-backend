@@ -14,6 +14,9 @@ class Site(db.Model):
 
     id = db.Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
+    # Ownership
+    owner_id = db.Column(db.Integer, db.ForeignKey('users.id', ondelete='CASCADE'), nullable=True)
+
     # Core fields
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
@@ -55,6 +58,7 @@ class Site(db.Model):
 
     # Relationships
     tour_sites = db.relationship('TourSite', back_populates='site', lazy=True, cascade='all, delete-orphan')
+    owner = db.relationship('User', back_populates='sites')
 
     def add_user_location(self, lat, lng):
         """Add a user-submitted location to the array."""
@@ -93,6 +97,8 @@ class Site(db.Model):
             'phone_number': self.phone_number,  # snake_case for iOS decoder
             'googlePhotoReferences': self.google_photo_references or [],
             'tourCount': len(self.tour_sites),
+            'ownerId': self.owner_id,
+            'ownerName': self.owner.name if self.owner else None,
             'createdAt': self.created_at.isoformat(),
             'updatedAt': self.updated_at.isoformat(),
         }

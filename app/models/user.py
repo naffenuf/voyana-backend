@@ -33,6 +33,7 @@ class User(db.Model):
 
     # Relationships
     tours = db.relationship('Tour', back_populates='owner', lazy='dynamic', cascade='all, delete-orphan')
+    sites = db.relationship('Site', back_populates='owner', lazy='dynamic', cascade='all, delete-orphan')
     api_keys = db.relationship('ApiKey', back_populates='user', lazy='dynamic', cascade='all, delete-orphan')
 
     def set_password(self, password):

@@ -178,6 +178,7 @@ export interface TourFilters {
   city?: string;
   neighborhood?: string;
   owner_id?: number;
+  exclude_owner?: number;
   include_sites?: string; // 'true' or 'false' - include full sites data in response
   lat?: number;
   lon?: number;

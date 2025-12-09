@@ -81,17 +81,30 @@ def list_tours():
     max_distance = request.args.get('max_distance', 5000, type=int)
     limit = min(request.args.get('limit', 100, type=int), 500)
     offset = request.args.get('offset', 0, type=int)
+    owner_id = request.args.get('owner_id', type=int)
+    exclude_owner = request.args.get('exclude_owner', type=int)
 
     # Build query
     query = Tour.query
 
-    # Access control: published tours OR user's own tours
-    query = query.filter(
-        or_(
+    # Access control
+    if exclude_owner:
+        # For "Other Tours" section - published tours NOT owned by user
+        query = query.filter(
             Tour.status == 'published',
-            Tour.owner_id == user_id
+            Tour.owner_id != exclude_owner
         )
-    )
+    elif owner_id:
+        # For "Your Tours" section - only tours owned by specific user
+        query = query.filter(Tour.owner_id == owner_id)
+    else:
+        # Regular access control: published tours OR user's own tours
+        query = query.filter(
+            or_(
+                Tour.status == 'published',
+                Tour.owner_id == user_id
+            )
+        )
 
     # Text search filter
     if search_text:
