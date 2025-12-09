@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'react-hot-toast';
 import toast from 'react-hot-toast';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { AuthProvider, useAuth } from './lib/auth';
 import Layout from './components/Layout';
 import AdminRoute from './components/AdminRoute';
@@ -96,20 +96,51 @@ function AppRoutes() {
 }
 
 function App() {
+  // Track when each toast is created
+  const toastCreateTime = useRef<number>(0);
+  const MIN_DISPLAY_TIME = 800; // milliseconds
+
   useEffect(() => {
-    // Dismiss all toasts on click or scroll
+    // Hook into toast methods to track creation time
+    const originalSuccess = toast.success;
+    const originalError = toast.error;
+
+    toast.success = ((...args: Parameters<typeof originalSuccess>) => {
+      toastCreateTime.current = Date.now();
+      return originalSuccess(...args);
+    }) as typeof originalSuccess;
+
+    toast.error = ((...args: Parameters<typeof originalError>) => {
+      toastCreateTime.current = Date.now();
+      return originalError(...args);
+    }) as typeof originalError;
+
+    return () => {
+      // Restore original methods on cleanup
+      toast.success = originalSuccess;
+      toast.error = originalError;
+    };
+  }, []);
+
+  useEffect(() => {
+    // Dismiss all toasts on any click (with minimum display time protection)
     const dismissToasts = () => {
-      toast.dismiss();
+      const now = Date.now();
+      const timeSinceCreate = now - toastCreateTime.current;
+
+      // Only dismiss if minimum time has elapsed
+      if (timeSinceCreate >= MIN_DISPLAY_TIME) {
+        toast.dismiss();
+        toastCreateTime.current = 0; // Reset
+      }
     };
 
-    // Add event listeners
+    // Only listen for clicks (not scroll - too sensitive)
     window.addEventListener('click', dismissToasts);
-    window.addEventListener('scroll', dismissToasts);
 
     // Cleanup
     return () => {
       window.removeEventListener('click', dismissToasts);
-      window.removeEventListener('scroll', dismissToasts);
     };
   }, []);
 
@@ -122,7 +153,7 @@ function App() {
           <Toaster
             position="top-right"
             toastOptions={{
-              duration: Infinity,
+              duration: Infinity, // Stays until user interacts
               style: {
                 background: '#363636',
                 color: '#fff',

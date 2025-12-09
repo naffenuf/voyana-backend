@@ -40,6 +40,10 @@ export default function TourDetail() {
   const [showAddSiteWizard, setShowAddSiteWizard] = useState(false);
   const [siteToRemove, setSiteToRemove] = useState<Site | null>(null);
   const [showValidationReport, setShowValidationReport] = useState(false);
+  const [lastAddedSiteLocation, setLastAddedSiteLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const descriptionRef = useRef<HTMLTextAreaElement>(null);
   const [playingIndex, setPlayingIndex] = useState<number | null>(null);
   const audioRefs = useRef<(HTMLAudioElement | null)[]>([]);
@@ -342,6 +346,12 @@ export default function TourDetail() {
   };
 
   const handleSiteCreated = (site: Site) => {
+    // Store location for next site add
+    setLastAddedSiteLocation({
+      latitude: site.latitude,
+      longitude: site.longitude,
+    });
+
     // Refresh tour data to include the new site
     queryClient.invalidateQueries({ queryKey: ['tour', id] });
     toast.success(`Site "${site.title}" added to tour!`);
@@ -1114,11 +1124,13 @@ export default function TourDetail() {
         onSiteCreated={handleSiteCreated}
         tourId={id}
         initialLocation={
-          tourData?.sites && tourData.sites.length > 0
-            ? { latitude: tourData.sites[0].latitude, longitude: tourData.sites[0].longitude }
-            : tourData?.latitude && tourData?.longitude
-            ? { latitude: tourData.latitude, longitude: tourData.longitude }
-            : undefined
+          lastAddedSiteLocation || (
+            tourData?.sites && tourData.sites.length > 0
+              ? { latitude: tourData.sites[0].latitude, longitude: tourData.sites[0].longitude }
+              : tourData?.latitude && tourData?.longitude
+              ? { latitude: tourData.latitude, longitude: tourData.longitude }
+              : undefined
+          )
         }
         tourCity={formData.city}
         tourNeighborhood={formData.neighborhood}

@@ -1,7 +1,10 @@
-import { useState, useEffect } from 'react';
-import { X, Search, ImageIcon, FileText, Loader2, Sparkles } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { X, Search, ImageIcon, FileText, Loader2, Sparkles, MapPin } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import L from 'leaflet';
 import { placesApi, sitesApi, toursApi, adminAiApi } from '../lib/api';
+import FileUpload from './FileUpload';
 import type { PlaceSearchResult, PlaceDetails, PlacePhoto, Site } from '../types';
 
 interface AddSiteWizardProps {
@@ -14,7 +17,7 @@ interface AddSiteWizardProps {
   tourNeighborhood?: string | null;
 }
 
-type WizardStep = 'initial' | 'search' | 'photos' | 'details';
+type WizardStep = 'initial' | 'search' | 'photos' | 'details' | 'manual';
 
 export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, initialLocation, tourCity, tourNeighborhood }: AddSiteWizardProps) {
   const [step, setStep] = useState<WizardStep>('initial');
@@ -36,6 +39,12 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
   const [loadingExistingSites, setLoadingExistingSites] = useState(false);
   const [currentTourSiteIds, setCurrentTourSiteIds] = useState<string[]>([]);
 
+  // Manual entry state
+  const [manualImageUrl, setManualImageUrl] = useState('');
+  const [manualWebUrl, setManualWebUrl] = useState('');
+  const [manualRating, setManualRating] = useState<number | ''>('');
+  const mapRef = useRef<L.Map | null>(null);
+
   // Reset state when wizard opens and load existing sites
   useEffect(() => {
     if (isOpen) {
@@ -53,6 +62,10 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
       setNeighborhood(tourNeighborhood || '');
       setExistingSites([]);
       setCurrentTourSiteIds([]);
+      // Reset manual entry fields
+      setManualImageUrl('');
+      setManualWebUrl('');
+      setManualRating('');
 
       // Load existing sites and current tour sites with the correct location
       loadExistingSites(loc);
@@ -197,36 +210,64 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
       toast.error('Site name is required');
       return;
     }
-    if (!selectedPlace) {
-      toast.error('Please select a place from search results');
-      return;
-    }
-    if (!selectedPhoto) {
-      toast.error('Please select a photo');
-      return;
+
+    // Different validation for manual vs Google Places entry
+    const isManualEntry = step === 'manual';
+
+    if (!isManualEntry) {
+      if (!selectedPlace) {
+        toast.error('Please select a place from search results');
+        return;
+      }
+      if (!selectedPhoto) {
+        toast.error('Please select a photo');
+        return;
+      }
+    } else {
+      // Manual entry validation
+      if (!manualImageUrl) {
+        toast.error('Please upload or provide an image URL');
+        return;
+      }
     }
 
     setSaving(true);
     try {
-      // Photo is already in S3 from the details endpoint
-      // Create the site
-      const siteData: Partial<Site> = {
-        title: siteName,
-        description: description.trim() || selectedPlace.editorialSummary || '',
-        latitude: location.latitude,
-        longitude: location.longitude,
-        city: city.trim() || null,
-        neighborhood: neighborhood.trim() || null,
-        imageUrl: selectedPhoto.url,  // Already uploaded to S3 (raw URL)
-        placeId: selectedPlace.placeId,
-        formatted_address: selectedPlace.formattedAddress,
-        types: selectedPlace.types,
-        user_ratings_total: selectedPlace.userRatingsTotal,
-        phone_number: selectedPlace.phoneNumber,
-        webUrl: selectedPlace.website,
-        rating: selectedPlace.rating,
-        googlePhotoReferences: selectedPlace.photos.map((p) => p.url),  // S3 URLs of all photos
-      };
+      let siteData: Partial<Site>;
+
+      if (isManualEntry) {
+        // Manual entry data
+        siteData = {
+          title: siteName,
+          description: description.trim() || '',
+          latitude: location.latitude,
+          longitude: location.longitude,
+          city: city.trim() || null,
+          neighborhood: neighborhood.trim() || null,
+          imageUrl: manualImageUrl,
+          webUrl: manualWebUrl.trim() || null,
+          rating: manualRating !== '' ? Number(manualRating) : null,
+        };
+      } else {
+        // Google Places data
+        siteData = {
+          title: siteName,
+          description: description.trim() || selectedPlace!.editorialSummary || '',
+          latitude: location.latitude,
+          longitude: location.longitude,
+          city: city.trim() || null,
+          neighborhood: neighborhood.trim() || null,
+          imageUrl: selectedPhoto!.url,
+          placeId: selectedPlace!.placeId,
+          formatted_address: selectedPlace!.formattedAddress,
+          types: selectedPlace!.types,
+          user_ratings_total: selectedPlace!.userRatingsTotal,
+          phone_number: selectedPlace!.phoneNumber,
+          webUrl: selectedPlace!.website,
+          rating: selectedPlace!.rating,
+          googlePhotoReferences: selectedPlace!.photos.map((p) => p.url),
+        };
+      }
 
       const newSite = await sitesApi.create(siteData);
 
@@ -251,6 +292,19 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
       setSaving(false);
     }
   };
+
+  // Map click handler component
+  function MapClickHandler() {
+    useMapEvents({
+      click(e) {
+        setLocation({
+          latitude: e.latlng.lat,
+          longitude: e.latlng.lng,
+        });
+      },
+    });
+    return null;
+  }
 
   if (!isOpen) return null;
 
@@ -331,6 +385,25 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
                   </button>
                 </div>
               </div>
+
+              {/* Divider */}
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">or</span>
+                </div>
+              </div>
+
+              {/* Manual Entry Button */}
+              <button
+                onClick={() => setStep('manual')}
+                className="w-full px-4 py-3 bg-green-50 hover:bg-green-100 text-green-700 rounded-lg border-2 border-green-200 hover:border-green-300 transition flex items-center justify-center space-x-2 font-medium"
+              >
+                <MapPin className="w-5 h-5" />
+                <span>Create Site Manually (Not in Google Places)</span>
+              </button>
 
               {/* Divider */}
               <div className="relative">
@@ -583,6 +656,196 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
               </div>
             </div>
           )}
+
+          {/* Step 5: Manual Entry */}
+          {step === 'manual' && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium">Create Site Manually</h3>
+                <button
+                  onClick={() => setStep('initial')}
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  ← Back
+                </button>
+              </div>
+
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                <strong>Click on the map</strong> to place a pin at the site's location, or enter coordinates manually below.
+              </div>
+
+              {/* Interactive Map */}
+              <div className="h-96 rounded-lg overflow-hidden border-2 border-gray-300">
+                <MapContainer
+                  center={[location.latitude, location.longitude]}
+                  zoom={15}
+                  style={{ height: '100%', width: '100%' }}
+                  ref={mapRef}
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <MapClickHandler />
+                  <Marker position={[location.latitude, location.longitude]} />
+                </MapContainer>
+              </div>
+
+              {/* Coordinates */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Latitude *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={location.latitude}
+                    onChange={(e) => setLocation({ ...location, latitude: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Longitude *
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    value={location.longitude}
+                    onChange={(e) => setLocation({ ...location, longitude: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Site Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Site Name *
+                </label>
+                <input
+                  type="text"
+                  value={siteName}
+                  onChange={(e) => setSiteName(e.target.value)}
+                  placeholder="e.g., Historic Walking Bridge"
+                  className="w-full px-3 py-2 border rounded-md"
+                  required
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Description *
+                </label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Describe what makes this site interesting..."
+                  className="w-full px-3 py-2 border rounded-md h-32 resize-none"
+                  required
+                />
+              </div>
+
+              {/* Image Upload */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Site Image *
+                </label>
+                {manualImageUrl && (
+                  <div className="mb-2 aspect-video rounded-lg overflow-hidden border">
+                    <img
+                      src={manualImageUrl}
+                      alt="Site preview"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={manualImageUrl}
+                    onChange={(e) => setManualImageUrl(e.target.value)}
+                    placeholder="Or paste image URL..."
+                    className="flex-1 px-3 py-2 border rounded-md"
+                  />
+                  <FileUpload
+                    type="image"
+                    folder="sites/images"
+                    onUploadComplete={(url) => setManualImageUrl(url)}
+                    label="Upload Image"
+                  />
+                </div>
+              </div>
+
+              {/* City and Neighborhood */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    City *
+                  </label>
+                  <input
+                    type="text"
+                    value={city}
+                    onChange={(e) => setCity(e.target.value)}
+                    placeholder="e.g., New York"
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Neighborhood *
+                  </label>
+                  <input
+                    type="text"
+                    value={neighborhood}
+                    onChange={(e) => setNeighborhood(e.target.value)}
+                    placeholder="e.g., Williamsburg"
+                    className="w-full px-3 py-2 border rounded-md"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Optional Fields */}
+              <div className="border-t pt-4 space-y-4">
+                <h4 className="text-sm font-semibold text-gray-700">Optional Information</h4>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Website URL
+                  </label>
+                  <input
+                    type="url"
+                    value={manualWebUrl}
+                    onChange={(e) => setManualWebUrl(e.target.value)}
+                    placeholder="https://example.com"
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Rating (1-5)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="5"
+                    step="0.1"
+                    value={manualRating}
+                    onChange={(e) => setManualRating(e.target.value ? parseFloat(e.target.value) : '')}
+                    placeholder="e.g., 4.5"
+                    className="w-full px-3 py-2 border rounded-md"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -606,7 +869,7 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
               </button>
             )}
 
-            {step === 'details' && (
+            {(step === 'details' || step === 'manual') && (
               <button
                 onClick={handleSave}
                 disabled={saving}
