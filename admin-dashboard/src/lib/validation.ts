@@ -132,14 +132,6 @@ export function validateSite(site: Site): ValidationIssue[] {
     })
   }
 
-  if (!site.formatted_address?.trim()) {
-    issues.push({
-      field: 'formatted_address',
-      label: 'Address',
-      message: 'Address is required'
-    })
-  }
-
   if (!site.city?.trim()) {
     issues.push({
       field: 'city',
