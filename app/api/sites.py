@@ -2,7 +2,7 @@
 Sites API endpoints.
 """
 from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from sqlalchemy import or_, and_, func
 from app import db
 from app.models.site import Site
@@ -253,10 +253,13 @@ def create_site():
 
 @sites_bp.route('/<uuid:site_id>', methods=['PUT'])
 @device_binding_required()
-@admin_required()
+@jwt_required()
 def update_site(site_id):
     """
-    Update a site (admin only).
+    Update a site.
+
+    Admins can update any site.
+    Creators can update sites that belong to their draft tours.
 
     Request body: Same as create_site (all fields optional except ID)
 
@@ -265,10 +268,33 @@ def update_site(site_id):
             "site": {...}
         }
     """
+    # Get current user info
+    user_id = int(get_jwt_identity())
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
     site = Site.query.get(site_id)
 
     if not site:
         return jsonify({'error': 'Site not found'}), 404
+
+    # Permission check: Admin or owner of a draft tour containing this site
+    if not is_admin:
+        from app.models.tour import Tour, TourSite
+
+        # Check if user owns any draft tour containing this site
+        user_draft_tours_with_site = db.session.query(Tour).join(
+            TourSite, TourSite.tour_id == Tour.id
+        ).filter(
+            TourSite.site_id == site_id,
+            Tour.owner_id == user_id,
+            Tour.status == 'draft'
+        ).count()
+
+        if user_draft_tours_with_site == 0:
+            return jsonify({
+                'error': 'Cannot edit this site. You can only edit sites in your draft tours.'
+            }), 403
 
     data = request.get_json()
 
