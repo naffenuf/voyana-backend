@@ -8,6 +8,7 @@ from app import limiter
 from app.services.s3_service import upload_file_to_s3
 from app.services.tts_service import generate_audio
 from app.utils.admin_required import admin_required
+from app.utils.device_binding import device_binding_required
 from app.utils.image_processing import optimize_image, validate_image
 from app.utils.rate_limiting import get_user_audio_limit, get_audio_rate_limit_key
 import uuid
@@ -53,12 +54,11 @@ def get_content_type(filename):
 
 
 @admin_upload_bp.route('/image', methods=['POST'])
-@jwt_required()
-@admin_required()
+@device_binding_required()
 @limiter.limit("50 per hour", key_func=lambda: f"upload_image_{get_jwt_identity()}")
 def upload_image():
     """
-    Upload an image file to S3 (admin only).
+    Upload an image file to S3.
 
     Request:
         Content-Type: multipart/form-data
@@ -169,12 +169,11 @@ def upload_image():
 
 
 @admin_upload_bp.route('/audio', methods=['POST'])
-@jwt_required()
-@admin_required()
+@device_binding_required()
 @limiter.limit("30 per hour", key_func=lambda: f"upload_audio_{get_jwt_identity()}")
 def upload_audio():
     """
-    Upload an audio file to S3 (admin only).
+    Upload an audio file to S3.
 
     Request:
         Content-Type: multipart/form-data
@@ -245,12 +244,11 @@ def upload_audio():
 
 
 @admin_upload_bp.route('/generate-audio', methods=['POST'])
-@jwt_required()
-@admin_required()
+@device_binding_required()
 @limiter.limit(get_user_audio_limit, key_func=get_audio_rate_limit_key)
 def generate_tts_audio():
     """
-    Generate audio from text using TTS and upload to S3 (admin only).
+    Generate audio from text using TTS and upload to S3.
 
     Request:
         Content-Type: application/json
