@@ -677,6 +677,10 @@ def generate_audio_for_tour_sites(tour_id):
         if tour.owner_id != user_id and not is_admin:
             return jsonify({'error': 'You do not have permission to modify this tour'}), 403
 
+        # Creators cannot modify tours that are in 'ready' status (submitted for review)
+        if not is_admin and tour.status == 'ready':
+            return jsonify({'error': 'Cannot modify tours that are submitted for review. An admin must revert to draft first.'}), 403
+
         # Get all sites for this tour through tour_sites junction table
         tour_sites = tour.tour_sites
 
@@ -881,6 +885,10 @@ def fact_check_tour_sites(tour_id):
         # Check if user has permission to modify this tour (owner or admin)
         if tour.owner_id != user_id and not is_admin:
             return jsonify({'error': 'You do not have permission to modify this tour'}), 403
+
+        # Creators cannot modify tours that are in 'ready' status (submitted for review)
+        if not is_admin and tour.status == 'ready':
+            return jsonify({'error': 'Cannot modify tours that are submitted for review. An admin must revert to draft first.'}), 403
 
         # Get all sites for this tour through tour_sites junction table
         tour_sites = tour.tour_sites

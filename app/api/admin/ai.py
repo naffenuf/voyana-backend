@@ -15,11 +15,12 @@ admin_ai_bp = Blueprint('admin_ai', __name__)
 
 @admin_ai_bp.route('/generate-description', methods=['POST'])
 @jwt_required()
-@admin_required()
 @limiter.limit("20 per hour", key_func=lambda: f"ai_generate_{get_jwt_identity()}")
 def generate_description():
     """
     Generate a site description using AI (Grok with web search).
+
+    Available to all authenticated users (rate limited).
 
     Request body:
         {
