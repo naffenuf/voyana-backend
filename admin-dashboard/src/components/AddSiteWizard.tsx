@@ -645,6 +645,21 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
                 </button>
               </div>
 
+              {/* Site Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Site Name *
+                </label>
+                <input
+                  type="text"
+                  value={siteName}
+                  onChange={(e) => setSiteName(e.target.value)}
+                  placeholder="e.g., Historic Walking Bridge"
+                  className="w-full px-3 py-2 border rounded-md"
+                  required
+                />
+              </div>
+
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
                 <strong>Click on the map</strong> to place a pin at the site's location, or enter coordinates manually below.
               </div>
@@ -694,21 +709,6 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
                     required
                   />
                 </div>
-              </div>
-
-              {/* Site Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Site Name *
-                </label>
-                <input
-                  type="text"
-                  value={siteName}
-                  onChange={(e) => setSiteName(e.target.value)}
-                  placeholder="e.g., Historic Walking Bridge"
-                  className="w-full px-3 py-2 border rounded-md"
-                  required
-                />
               </div>
 
               {/* Description */}
