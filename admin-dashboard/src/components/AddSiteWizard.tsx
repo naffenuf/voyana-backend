@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { placesApi, sitesApi, toursApi } from '../lib/api';
+import { usePresignedUrl } from '../hooks/usePresignedUrl';
 import FileUpload from './FileUpload';
 import type { PlaceSearchResult, PlaceDetails, PlacePhoto, Site } from '../types';
 
@@ -43,6 +44,9 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
   const [manualWebUrl, setManualWebUrl] = useState('');
   const [manualRating, setManualRating] = useState<number | ''>('');
   const mapRef = useRef<L.Map | null>(null);
+
+  // Presign manual image URL for preview
+  const presignedManualImageUrl = usePresignedUrl(manualImageUrl);
 
   // Reset state when wizard opens and load existing sites
   useEffect(() => {
@@ -726,10 +730,10 @@ export default function AddSiteWizard({ isOpen, onClose, onSiteCreated, tourId, 
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Site Image *
                 </label>
-                {manualImageUrl && (
+                {presignedManualImageUrl && (
                   <div className="mb-2 aspect-video rounded-lg overflow-hidden border">
                     <img
-                      src={manualImageUrl}
+                      src={presignedManualImageUrl}
                       alt="Site preview"
                       className="w-full h-full object-cover"
                     />
