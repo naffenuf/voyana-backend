@@ -29,6 +29,7 @@ export interface Tour {
   ratingCount: number;
   calculatedRating: number | null;
   status: 'draft' | 'ready' | 'published' | 'archived';
+  isOrdered: boolean;
   ownerId: number;
   ownerName: string | null;
   createdAt: string;

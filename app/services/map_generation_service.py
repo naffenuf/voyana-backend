@@ -116,12 +116,13 @@ class MapGenerationService:
                 for wp in waypoints[1:-1]
             ]
 
-            # Get directions with route optimization
+            # Get directions - disable waypoint optimization for ordered tours
+            # When is_ordered=True, use creator's fixed sequence instead of optimizing
             route_result = self.gmaps.directions(
                 origin=origin,
                 destination=destination,
                 waypoints=intermediate_points,
-                optimize_waypoints=True,
+                optimize_waypoints=not tour.is_ordered,  # False for ordered tours, True otherwise
                 mode="walking",  # Assume walking tours (can be parameterized later)
                 departure_time=datetime.now()
             )

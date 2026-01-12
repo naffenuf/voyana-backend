@@ -26,6 +26,7 @@ export default function TourDetail() {
     name: '',
     description: '',
     status: 'draft',
+    isOrdered: false,
     imageUrl: '',
     mapImageUrl: '',
     musicUrls: [],
@@ -38,6 +39,8 @@ export default function TourDetail() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [hoveredSiteId, setHoveredSiteId] = useState<string | null>(null);
   const [showAddSiteWizard, setShowAddSiteWizard] = useState(false);
+  const [draggedSiteIndex, setDraggedSiteIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [siteToRemove, setSiteToRemove] = useState<Site | null>(null);
   const [showValidationReport, setShowValidationReport] = useState(false);
   const [lastAddedSiteLocation, setLastAddedSiteLocation] = useState<{
@@ -393,6 +396,50 @@ export default function TourDetail() {
     }
   };
 
+  // Drag and drop handlers for site reordering
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedSiteIndex(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = async (e: React.DragEvent, dropIndex: number) => {
+    e.preventDefault();
+    if (draggedSiteIndex === null || draggedSiteIndex === dropIndex || !tourData?.sites) return;
+
+    const sites = [...tourData.sites];
+    const [draggedSite] = sites.splice(draggedSiteIndex, 1);
+    sites.splice(dropIndex, 0, draggedSite);
+
+    // Get new order of site IDs
+    const newSiteIds = sites.map(s => s.id);
+
+    try {
+      await toursApi.update(id!, { siteIds: newSiteIds });
+      queryClient.invalidateQueries({ queryKey: ['tour', id] });
+      toast.success('Site order updated');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Failed to reorder sites');
+    }
+
+    setDraggedSiteIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedSiteIndex(null);
+    setDragOverIndex(null);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -698,9 +745,16 @@ export default function TourDetail() {
                 <div className="flex items-center justify-between">
                   <div>
                     {tourData?.sites && tourData.sites.length > 0 && (
-                      <p className="text-sm text-gray-500 italic">
-                        Order optimized for user's location
-                      </p>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.isOrdered || false}
+                          onChange={(e) => updateField('isOrdered', e.target.checked)}
+                          disabled={!isAdmin && formData.status === 'ready'}
+                          className="w-4 h-4 text-[#8B6F47] border-gray-300 rounded focus:ring-[#8B6F47]"
+                        />
+                        <span className="text-sm font-medium text-gray-900">Fixed route order</span>
+                      </label>
                     )}
                   </div>
                   {!isNew && (
@@ -799,17 +853,38 @@ export default function TourDetail() {
                       </MapContainer>
                     </div>
 
-                    {/* Sites list */}
+                    {/* Sites list with drag-drop reordering */}
                     <div className="space-y-2">
                       {tourData.sites.map((site, index) => (
                         <div
                           key={site.id}
-                          className={`flex items-start gap-3 p-3 rounded-lg transition-colors group ${
-                            hoveredSiteId === site.id ? 'bg-[#F6EDD9]' : 'hover:bg-[#F6EDD9]/50'
+                          draggable={!(!isAdmin && formData.status === 'ready')}
+                          onDragStart={(e) => handleDragStart(e, index)}
+                          onDragOver={(e) => handleDragOver(e, index)}
+                          onDragLeave={handleDragLeave}
+                          onDrop={(e) => handleDrop(e, index)}
+                          onDragEnd={handleDragEnd}
+                          className={`flex items-start gap-3 p-3 rounded-lg transition-all group ${
+                            draggedSiteIndex === index
+                              ? 'opacity-50 bg-[#F6EDD9]'
+                              : dragOverIndex === index
+                              ? 'border-t-2 border-[#8B6F47]'
+                              : hoveredSiteId === site.id
+                              ? 'bg-[#F6EDD9]'
+                              : 'hover:bg-[#F6EDD9]/50'
                           }`}
                           onMouseEnter={() => setHoveredSiteId(site.id)}
                           onMouseLeave={() => setHoveredSiteId(null)}
                         >
+                          {/* Drag handle */}
+                          <div
+                            className="flex-shrink-0 cursor-grab text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                            title="Drag to reorder"
+                          >
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                              <path d="M8 6h2v2H8V6zm6 0h2v2h-2V6zM8 11h2v2H8v-2zm6 0h2v2h-2v-2zm-6 5h2v2H8v-2zm6 0h2v2h-2v-2z"/>
+                            </svg>
+                          </div>
                           <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm transition-colors ${
                             hoveredSiteId === site.id ? 'bg-[#8B6F47] text-white' : 'bg-[#F6EDD9] text-[#8B6F47]'
                           }`}>

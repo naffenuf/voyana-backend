@@ -46,6 +46,9 @@ class Tour(db.Model):
     # Status
     status = db.Column(db.String(20), default='draft', nullable=False)  # 'draft', 'ready', 'published', 'archived'
 
+    # Route ordering
+    is_ordered = db.Column(db.Boolean, default=False, nullable=False)  # If True, use fixed creator order (no optimization)
+
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -86,6 +89,7 @@ class Tour(db.Model):
             'ratingCount': self.rating_count,
             'calculatedRating': self.get_calculated_rating(),
             'status': self.status,
+            'isOrdered': self.is_ordered,
             'ownerId': self.owner_id,
             'ownerName': self.owner.name if self.owner else None,
             'createdAt': self.created_at.isoformat(),

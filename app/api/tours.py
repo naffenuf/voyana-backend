@@ -307,6 +307,13 @@ def update_tour(tour_id):
     if 'distanceMeters' in data:
         tour.distance_meters = data['distanceMeters']
 
+    # Track if is_ordered changed (for map regeneration)
+    is_ordered_changed = False
+    if 'isOrdered' in data:
+        old_value = tour.is_ordered
+        tour.is_ordered = data['isOrdered']
+        is_ordered_changed = old_value != data['isOrdered']
+
     # Status changes
     if 'status' in data:
         new_status = data['status']
@@ -392,6 +399,21 @@ def update_tour(tour_id):
                 current_app.logger.warning(f'Failed to auto-regenerate map for tour {tour.id}')
         except Exception as e:
             current_app.logger.error(f'Error auto-regenerating map for tour {tour.id}: {e}')
+            # Don't fail the whole request if map generation fails
+
+    # Regenerate map if is_ordered changed (route display will be different)
+    elif is_ordered_changed and len(tour.tour_sites) >= 2:
+        try:
+            from app.services.map_generation_service import map_generation_service
+            current_app.logger.info(f'Regenerating map for tour {tour.id} due to is_ordered change')
+            map_url = map_generation_service.generate_tour_map(str(tour.id))
+            if map_url:
+                tour.map_image_url = map_url
+                current_app.logger.info(f'Successfully regenerated map for tour {tour.id}: {map_url}')
+            else:
+                current_app.logger.warning(f'Failed to regenerate map for tour {tour.id}')
+        except Exception as e:
+            current_app.logger.error(f'Error regenerating map for tour {tour.id}: {e}')
             # Don't fail the whole request if map generation fails
 
     db.session.commit()
