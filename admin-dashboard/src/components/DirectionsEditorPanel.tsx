@@ -4,7 +4,7 @@ import L from 'leaflet';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { toursApi } from '../lib/api';
-import type { Tour, Site, DirectionSegment, TransitionDirections } from '../types';
+import type { Tour, Site } from '../types';
 import FileUpload from './FileUpload';
 
 // Custom icons for different marker types
@@ -147,7 +147,7 @@ export default function DirectionsEditorPanel({ tour, sites, disabled }: Directi
         }))
       );
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tourDirections', tour.id] });
       toast.success('Directions saved!');
 
