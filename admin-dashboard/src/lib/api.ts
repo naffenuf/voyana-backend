@@ -23,6 +23,9 @@ import type {
   ApiKey,
   ApiKeyFilters,
   DefaultMusicTrack,
+  DirectionSegment,
+  TransitionDirections,
+  TourDirectionsResponse,
 } from '../types';
 import { refreshAccessToken } from './auth';
 
@@ -236,6 +239,58 @@ export const toursApi = {
       mapUrl: string;
     }>(`/api/tours/${id}/generate-map`);
     return response.data;
+  },
+
+  // Direction segments API
+  getDirections: async (tourId: string): Promise<TourDirectionsResponse> => {
+    const response = await api.get<TourDirectionsResponse>(`/api/tours/${tourId}/directions`);
+    return response.data;
+  },
+
+  getTransitionDirections: async (tourId: string, fromSiteId: string, toSiteId: string): Promise<TransitionDirections> => {
+    const response = await api.get<TransitionDirections>(`/api/tours/${tourId}/directions/${fromSiteId}/${toSiteId}`);
+    return response.data;
+  },
+
+  upsertTransitionDirections: async (
+    tourId: string,
+    fromSiteId: string,
+    toSiteId: string,
+    segments: Array<{
+      directionText: string;
+      audioUrl?: string;
+      triggerLatitude: number;
+      triggerLongitude: number;
+      triggerRadius?: number;
+    }>
+  ): Promise<TransitionDirections> => {
+    const response = await api.put<TransitionDirections>(
+      `/api/tours/${tourId}/directions/${fromSiteId}/${toSiteId}`,
+      { segments }
+    );
+    return response.data;
+  },
+
+  deleteTransitionDirections: async (tourId: string, fromSiteId: string, toSiteId: string): Promise<void> => {
+    await api.delete(`/api/tours/${tourId}/directions/${fromSiteId}/${toSiteId}`);
+  },
+
+  uploadDirectionAudio: async (tourId: string, segmentId: string, audioFile: File): Promise<{ audioUrl: string; segment: DirectionSegment }> => {
+    const formData = new FormData();
+    formData.append('audio', audioFile);
+    const response = await api.post<{ audioUrl: string; segment: DirectionSegment }>(
+      `/api/tours/${tourId}/directions/${segmentId}/audio`,
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    return response.data;
+  },
+
+  deleteDirectionAudio: async (tourId: string, segmentId: string): Promise<{ segment: DirectionSegment }> => {
+    const response = await api.delete<{ message: string; segment: DirectionSegment }>(
+      `/api/tours/${tourId}/directions/${segmentId}/audio`
+    );
+    return { segment: response.data.segment };
   },
 };
 

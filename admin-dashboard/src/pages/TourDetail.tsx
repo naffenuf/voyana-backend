@@ -13,6 +13,7 @@ import FileUpload from '../components/FileUpload';
 import AddSiteWizard from '../components/AddSiteWizard';
 import RemoveSiteDialog from '../components/RemoveSiteDialog';
 import ValidationReportModal from '../components/ValidationReportModal';
+import DirectionsEditorPanel from '../components/DirectionsEditorPanel';
 import type { Tour, Site } from '../types';
 
 export default function TourDetail() {
@@ -27,6 +28,7 @@ export default function TourDetail() {
     description: '',
     status: 'draft',
     isOrdered: false,
+    hasFixedDirections: false,
     imageUrl: '',
     mapImageUrl: '',
     musicUrls: [],
@@ -745,16 +747,35 @@ export default function TourDetail() {
                 <div className="flex items-center justify-between">
                   <div>
                     {tourData?.sites && tourData.sites.length > 0 && (
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.isOrdered || false}
-                          onChange={(e) => updateField('isOrdered', e.target.checked)}
-                          disabled={!isAdmin && formData.status === 'ready'}
-                          className="w-4 h-4 text-[#8B6F47] border-gray-300 rounded focus:ring-[#8B6F47]"
-                        />
-                        <span className="text-sm font-medium text-gray-900">Fixed route order</span>
-                      </label>
+                      <div className="flex flex-col gap-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.isOrdered || false}
+                            onChange={(e) => {
+                              updateField('isOrdered', e.target.checked);
+                              // Disable fixed directions when disabling fixed route
+                              if (!e.target.checked && formData.hasFixedDirections) {
+                                updateField('hasFixedDirections', false);
+                              }
+                            }}
+                            disabled={!isAdmin && formData.status === 'ready'}
+                            className="w-4 h-4 text-[#8B6F47] border-gray-300 rounded focus:ring-[#8B6F47]"
+                          />
+                          <span className="text-sm font-medium text-gray-900">Fixed route order</span>
+                        </label>
+                        <label className={`flex items-center gap-2 ${formData.isOrdered ? 'cursor-pointer' : 'cursor-not-allowed opacity-50'}`}>
+                          <input
+                            type="checkbox"
+                            checked={formData.hasFixedDirections || false}
+                            onChange={(e) => updateField('hasFixedDirections', e.target.checked)}
+                            disabled={!formData.isOrdered || (!isAdmin && formData.status === 'ready')}
+                            className="w-4 h-4 text-[#8B6F47] border-gray-300 rounded focus:ring-[#8B6F47]"
+                          />
+                          <span className="text-sm font-medium text-gray-900">Fixed directions</span>
+                          {!formData.isOrdered && <span className="text-xs text-gray-500">(requires fixed route)</span>}
+                        </label>
+                      </div>
                     )}
                   </div>
                   {!isNew && (
@@ -926,6 +947,15 @@ export default function TourDetail() {
                   </>
                 )}
               </div>
+
+              {/* Fixed Directions Editor */}
+              {!isNew && formData.hasFixedDirections && tourData?.sites && tourData.sites.length >= 2 && (
+                <DirectionsEditorPanel
+                  tour={tourData}
+                  sites={tourData.sites}
+                  disabled={!isAdmin && formData.status === 'ready'}
+                />
+              )}
 
             </div>
           </form>

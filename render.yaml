@@ -14,6 +14,7 @@ services:
     runtime: docker
     dockerfilePath: ./Dockerfile
     dockerContext: .
+    dockerCommand: sh -c "flask db upgrade && gunicorn --bind 0.0.0.0:5000 --workers 4 --timeout 600 run:app"
     envVars:
       - key: FLASK_ENV
         value: production

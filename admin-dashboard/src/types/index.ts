@@ -30,6 +30,7 @@ export interface Tour {
   calculatedRating: number | null;
   status: 'draft' | 'ready' | 'published' | 'archived';
   isOrdered: boolean;
+  hasFixedDirections: boolean;
   ownerId: number;
   ownerName: string | null;
   createdAt: string;
@@ -38,7 +39,36 @@ export interface Tour {
   siteCount: number;
   sites?: Site[];
   siteIds?: string[];
+  directionSegments?: DirectionSegment[];
   distance?: number;
+}
+
+// Direction segment types (for fixed directions feature)
+export interface DirectionSegment {
+  id: string;
+  tourId: string;
+  fromSiteId: string;
+  toSiteId: string;
+  segmentOrder: number;
+  directionText: string;
+  audioUrl: string | null;
+  triggerLatitude: number;
+  triggerLongitude: number;
+  triggerRadius: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TransitionDirections {
+  fromSiteId: string;
+  toSiteId: string;
+  segments: DirectionSegment[];
+}
+
+export interface TourDirectionsResponse {
+  directions: TransitionDirections[];
+  totalTransitions: number;
+  completedTransitions: number;
 }
 
 // Site types

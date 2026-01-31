@@ -5,7 +5,8 @@ from flask import Blueprint, request, jsonify, current_app, g
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request, get_jwt
 from sqlalchemy import or_
 from app import db, limiter
-from app.models.tour import Tour
+from app.models.tour import Tour, TourSite
+from app.models.direction_segment import DirectionSegment
 from app.models.site import Site
 from app.models.user import User
 from app.services.tts_service import generate_audio
@@ -313,6 +314,20 @@ def update_tour(tour_id):
         old_value = tour.is_ordered
         tour.is_ordered = data['isOrdered']
         is_ordered_changed = old_value != data['isOrdered']
+        # If disabling isOrdered, also disable hasFixedDirections
+        if not data['isOrdered'] and tour.has_fixed_directions:
+            tour.has_fixed_directions = False
+
+    # Handle hasFixedDirections (requires isOrdered to be True)
+    if 'hasFixedDirections' in data:
+        if data['hasFixedDirections']:
+            # Validate that isOrdered is True when enabling fixed directions
+            is_ordered = data.get('isOrdered', tour.is_ordered)
+            if not is_ordered:
+                return jsonify({'error': 'Fixed directions requires fixed route order (isOrdered must be true)'}), 400
+            tour.has_fixed_directions = True
+        else:
+            tour.has_fixed_directions = False
 
     # Status changes
     if 'status' in data:
@@ -365,6 +380,14 @@ def update_tour(tour_id):
             db.session.add(tour_site)
 
         current_app.logger.info(f'Updated sites for tour {tour.id}: {len(site_ids)} sites')
+
+        # Clear direction segments when sites are reordered (transitions are invalidated)
+        if tour.has_fixed_directions:
+            deleted_segments = DirectionSegment.query.filter_by(tour_id=tour.id).delete()
+            if deleted_segments > 0:
+                current_app.logger.info(
+                    f'Cleared {deleted_segments} direction segments for tour {tour.id} due to site reordering'
+                )
 
         # Auto-calculate tour metrics based on updated sites
         # Flush to ensure tour_sites relationships are available
@@ -1062,3 +1085,388 @@ def generate_tour_map(tour_id):
     except Exception as e:
         current_app.logger.error(f'Error generating map for tour {tour.id}: {e}')
         return jsonify({'error': f'Failed to generate map: {str(e)}'}), 500
+
+
+# ============================================================================
+# Direction Segments API Endpoints
+# ============================================================================
+
+@tours_bp.route('/<uuid:tour_id>/directions', methods=['GET'])
+@device_binding_required()
+def get_tour_directions(tour_id):
+    """
+    Get all direction segments for a tour, grouped by transition.
+
+    Returns:
+        {
+            "directions": [
+                {
+                    "fromSiteId": "uuid",
+                    "toSiteId": "uuid",
+                    "segments": [...]
+                }
+            ],
+            "totalTransitions": 3,
+            "completedTransitions": 2
+        }
+    """
+    user_id = int(get_jwt_identity())
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
+    tour = Tour.query.get(tour_id)
+
+    if not tour:
+        return jsonify({'error': 'Tour not found'}), 404
+
+    # Check access (owner, admin, or published tour)
+    if tour.status != 'published' and not is_admin and tour.owner_id != user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Get all direction segments for this tour
+    segments = DirectionSegment.query.filter_by(tour_id=tour_id).order_by(
+        DirectionSegment.from_site_id,
+        DirectionSegment.to_site_id,
+        DirectionSegment.segment_order
+    ).all()
+
+    # Group segments by transition
+    transitions = {}
+    for segment in segments:
+        key = (str(segment.from_site_id), str(segment.to_site_id))
+        if key not in transitions:
+            transitions[key] = {
+                'fromSiteId': str(segment.from_site_id),
+                'toSiteId': str(segment.to_site_id),
+                'segments': []
+            }
+        transitions[key]['segments'].append(segment.to_dict())
+
+    # Calculate total expected transitions based on tour sites
+    tour_sites = TourSite.query.filter_by(tour_id=tour_id).order_by(TourSite.display_order).all()
+    total_transitions = max(0, len(tour_sites) - 1)
+    completed_transitions = len(transitions)
+
+    return jsonify({
+        'directions': list(transitions.values()),
+        'totalTransitions': total_transitions,
+        'completedTransitions': completed_transitions
+    }), 200
+
+
+@tours_bp.route('/<uuid:tour_id>/directions/<uuid:from_site_id>/<uuid:to_site_id>', methods=['GET'])
+@device_binding_required()
+def get_transition_directions(tour_id, from_site_id, to_site_id):
+    """
+    Get direction segments for a specific transition.
+
+    Returns:
+        {
+            "fromSiteId": "uuid",
+            "toSiteId": "uuid",
+            "segments": [...]
+        }
+    """
+    user_id = int(get_jwt_identity())
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
+    tour = Tour.query.get(tour_id)
+
+    if not tour:
+        return jsonify({'error': 'Tour not found'}), 404
+
+    # Check access
+    if tour.status != 'published' and not is_admin and tour.owner_id != user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Get segments for this transition
+    segments = DirectionSegment.query.filter_by(
+        tour_id=tour_id,
+        from_site_id=from_site_id,
+        to_site_id=to_site_id
+    ).order_by(DirectionSegment.segment_order).all()
+
+    return jsonify({
+        'fromSiteId': str(from_site_id),
+        'toSiteId': str(to_site_id),
+        'segments': [s.to_dict() for s in segments]
+    }), 200
+
+
+@tours_bp.route('/<uuid:tour_id>/directions/<uuid:from_site_id>/<uuid:to_site_id>', methods=['PUT'])
+@device_binding_required()
+def upsert_transition_directions(tour_id, from_site_id, to_site_id):
+    """
+    Create or replace direction segments for a transition.
+
+    Request body:
+        {
+            "segments": [
+                {
+                    "directionText": "Turn left at the fountain...",
+                    "audioUrl": "https://...",  // optional
+                    "triggerLatitude": 40.123,
+                    "triggerLongitude": -74.456,
+                    "triggerRadius": 21.0  // optional, default 21
+                }
+            ]
+        }
+
+    Returns:
+        {
+            "fromSiteId": "uuid",
+            "toSiteId": "uuid",
+            "segments": [...]
+        }
+    """
+    user_id = int(get_jwt_identity())
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
+    tour = Tour.query.get(tour_id)
+
+    if not tour:
+        return jsonify({'error': 'Tour not found'}), 404
+
+    # Check ownership
+    if not is_admin and tour.owner_id != user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Creators cannot edit tours in 'ready' status
+    if not is_admin and tour.status == 'ready':
+        return jsonify({'error': 'Cannot edit tours submitted for review'}), 403
+
+    # Validate that fixed directions is enabled
+    if not tour.has_fixed_directions:
+        return jsonify({'error': 'Fixed directions not enabled for this tour'}), 400
+
+    # Validate that from_site and to_site are in this tour
+    from_site_in_tour = TourSite.query.filter_by(tour_id=tour_id, site_id=from_site_id).first()
+    to_site_in_tour = TourSite.query.filter_by(tour_id=tour_id, site_id=to_site_id).first()
+
+    if not from_site_in_tour or not to_site_in_tour:
+        return jsonify({'error': 'Sites must be part of this tour'}), 400
+
+    data = request.get_json()
+
+    if not data or 'segments' not in data:
+        return jsonify({'error': 'segments array is required'}), 400
+
+    segments_data = data['segments']
+
+    # Validate each segment
+    for i, seg in enumerate(segments_data):
+        if not seg.get('directionText'):
+            return jsonify({'error': f'Segment {i}: directionText is required'}), 400
+        if seg.get('triggerLatitude') is None or seg.get('triggerLongitude') is None:
+            return jsonify({'error': f'Segment {i}: triggerLatitude and triggerLongitude are required'}), 400
+
+        # Validate trigger radius (min 15, default 21)
+        radius = seg.get('triggerRadius', 21.0)
+        if radius < 15:
+            return jsonify({'error': f'Segment {i}: triggerRadius must be at least 15 meters'}), 400
+
+    # Delete existing segments for this transition
+    DirectionSegment.query.filter_by(
+        tour_id=tour_id,
+        from_site_id=from_site_id,
+        to_site_id=to_site_id
+    ).delete()
+
+    # Create new segments
+    new_segments = []
+    for order, seg in enumerate(segments_data):
+        segment = DirectionSegment(
+            tour_id=tour_id,
+            from_site_id=from_site_id,
+            to_site_id=to_site_id,
+            segment_order=order,
+            direction_text=seg['directionText'],
+            audio_url=seg.get('audioUrl'),
+            trigger_latitude=seg['triggerLatitude'],
+            trigger_longitude=seg['triggerLongitude'],
+            trigger_radius=seg.get('triggerRadius', 21.0)
+        )
+        db.session.add(segment)
+        new_segments.append(segment)
+
+    db.session.commit()
+
+    current_app.logger.info(
+        f'Updated direction segments for tour {tour_id}: {from_site_id} -> {to_site_id} ({len(new_segments)} segments)'
+    )
+
+    return jsonify({
+        'fromSiteId': str(from_site_id),
+        'toSiteId': str(to_site_id),
+        'segments': [s.to_dict() for s in new_segments]
+    }), 200
+
+
+@tours_bp.route('/<uuid:tour_id>/directions/<uuid:from_site_id>/<uuid:to_site_id>', methods=['DELETE'])
+@device_binding_required()
+def delete_transition_directions(tour_id, from_site_id, to_site_id):
+    """
+    Delete all direction segments for a transition.
+
+    Returns:
+        {
+            "message": "Deleted 3 segments"
+        }
+    """
+    user_id = int(get_jwt_identity())
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
+    tour = Tour.query.get(tour_id)
+
+    if not tour:
+        return jsonify({'error': 'Tour not found'}), 404
+
+    # Check ownership
+    if not is_admin and tour.owner_id != user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Creators cannot edit tours in 'ready' status
+    if not is_admin and tour.status == 'ready':
+        return jsonify({'error': 'Cannot edit tours submitted for review'}), 403
+
+    # Delete segments
+    deleted_count = DirectionSegment.query.filter_by(
+        tour_id=tour_id,
+        from_site_id=from_site_id,
+        to_site_id=to_site_id
+    ).delete()
+
+    db.session.commit()
+
+    current_app.logger.info(
+        f'Deleted {deleted_count} direction segments for tour {tour_id}: {from_site_id} -> {to_site_id}'
+    )
+
+    return jsonify({'message': f'Deleted {deleted_count} segments'}), 200
+
+
+@tours_bp.route('/<uuid:tour_id>/directions/<uuid:segment_id>/audio', methods=['POST'])
+@device_binding_required()
+def upload_direction_audio(tour_id, segment_id):
+    """
+    Upload audio file for a direction segment.
+
+    Expects multipart form with 'audio' file field.
+
+    Returns:
+        {
+            "audioUrl": "https://s3.../audio.mp3",
+            "segment": {...}
+        }
+    """
+    from app.services.s3_service import upload_file_to_s3
+
+    user_id = int(get_jwt_identity())
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
+    tour = Tour.query.get(tour_id)
+
+    if not tour:
+        return jsonify({'error': 'Tour not found'}), 404
+
+    # Check ownership
+    if not is_admin and tour.owner_id != user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Creators cannot edit tours in 'ready' status
+    if not is_admin and tour.status == 'ready':
+        return jsonify({'error': 'Cannot edit tours submitted for review'}), 403
+
+    # Find segment
+    segment = DirectionSegment.query.filter_by(id=segment_id, tour_id=tour_id).first()
+
+    if not segment:
+        return jsonify({'error': 'Direction segment not found'}), 404
+
+    # Check for audio file
+    if 'audio' not in request.files:
+        return jsonify({'error': 'No audio file provided'}), 400
+
+    audio_file = request.files['audio']
+
+    if not audio_file.filename:
+        return jsonify({'error': 'No file selected'}), 400
+
+    # Validate file extension
+    allowed_extensions = {'mp3', 'm4a', 'wav', 'aac'}
+    ext = audio_file.filename.rsplit('.', 1)[-1].lower()
+    if ext not in allowed_extensions:
+        return jsonify({'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'}), 400
+
+    try:
+        # Upload to S3
+        import uuid as uuid_module
+        filename = f"directions/{tour_id}/{segment_id}/{uuid_module.uuid4()}.{ext}"
+        audio_url = upload_file_to_s3(audio_file, filename)
+
+        # Update segment
+        segment.audio_url = audio_url
+        db.session.commit()
+
+        current_app.logger.info(f'Uploaded audio for direction segment {segment_id}: {audio_url}')
+
+        return jsonify({
+            'audioUrl': audio_url,
+            'segment': segment.to_dict()
+        }), 200
+
+    except Exception as e:
+        current_app.logger.error(f'Error uploading direction audio: {e}')
+        return jsonify({'error': f'Failed to upload audio: {str(e)}'}), 500
+
+
+@tours_bp.route('/<uuid:tour_id>/directions/<uuid:segment_id>/audio', methods=['DELETE'])
+@device_binding_required()
+def delete_direction_audio(tour_id, segment_id):
+    """
+    Remove audio file from a direction segment.
+
+    Returns:
+        {
+            "message": "Audio removed",
+            "segment": {...}
+        }
+    """
+    user_id = int(get_jwt_identity())
+    claims = get_jwt()
+    is_admin = claims.get('role') == 'admin'
+
+    tour = Tour.query.get(tour_id)
+
+    if not tour:
+        return jsonify({'error': 'Tour not found'}), 404
+
+    # Check ownership
+    if not is_admin and tour.owner_id != user_id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    # Creators cannot edit tours in 'ready' status
+    if not is_admin and tour.status == 'ready':
+        return jsonify({'error': 'Cannot edit tours submitted for review'}), 403
+
+    # Find segment
+    segment = DirectionSegment.query.filter_by(id=segment_id, tour_id=tour_id).first()
+
+    if not segment:
+        return jsonify({'error': 'Direction segment not found'}), 404
+
+    # Clear audio URL
+    old_url = segment.audio_url
+    segment.audio_url = None
+    db.session.commit()
+
+    current_app.logger.info(f'Removed audio from direction segment {segment_id} (was: {old_url})')
+
+    return jsonify({
+        'message': 'Audio removed',
+        'segment': segment.to_dict()
+    }), 200

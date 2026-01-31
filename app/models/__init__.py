@@ -4,6 +4,7 @@ SQLAlchemy models.
 from app.models.user import User, ApiKey, PasswordResetToken
 from app.models.tour import Tour, TourSite
 from app.models.site import Site
+from app.models.direction_segment import DirectionSegment
 from app.models.neighborhood import NeighborhoodDescription
 from app.models.feedback import Feedback
 from app.models.feedback_issue import FeedbackIssue
@@ -21,6 +22,7 @@ __all__ = [
     'Tour',
     'TourSite',
     'Site',
+    'DirectionSegment',
     'NeighborhoodDescription',
     'Feedback',
     'FeedbackIssue',

@@ -48,6 +48,7 @@ class Tour(db.Model):
 
     # Route ordering
     is_ordered = db.Column(db.Boolean, default=False, nullable=False)  # If True, use fixed creator order (no optimization)
+    has_fixed_directions = db.Column(db.Boolean, default=False, nullable=False)  # If True, use author-created directions instead of auto-generated
 
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -57,6 +58,7 @@ class Tour(db.Model):
     # Relationships
     owner = db.relationship('User', back_populates='tours')
     tour_sites = db.relationship('TourSite', back_populates='tour', lazy=True, cascade='all, delete-orphan', order_by='TourSite.display_order')
+    direction_segments = db.relationship('DirectionSegment', back_populates='tour', lazy=True, cascade='all, delete-orphan', order_by='DirectionSegment.segment_order')
 
     def get_calculated_rating(self):
         """Calculate average rating from all sites in the tour."""
@@ -90,6 +92,7 @@ class Tour(db.Model):
             'calculatedRating': self.get_calculated_rating(),
             'status': self.status,
             'isOrdered': self.is_ordered,
+            'hasFixedDirections': self.has_fixed_directions,
             'ownerId': self.owner_id,
             'ownerName': self.owner.name if self.owner else None,
             'createdAt': self.created_at.isoformat(),
@@ -115,6 +118,10 @@ class Tour(db.Model):
         if include_sites:
             result['sites'] = [ts.site.to_dict() for ts in self.tour_sites]
             result['siteIds'] = [str(ts.site_id) for ts in self.tour_sites]
+
+        # Include direction segments when fixed directions are enabled
+        if self.has_fixed_directions and self.direction_segments:
+            result['directionSegments'] = [ds.to_dict() for ds in self.direction_segments]
 
         # Add default music tracks as fallback for tours without music
         from app.models.default_music import DefaultMusicTrack

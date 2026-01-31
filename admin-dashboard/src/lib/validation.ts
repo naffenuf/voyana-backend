@@ -91,6 +91,28 @@ export function validateTour(tour: Tour | null): ValidationIssue[] {
     })
   }
 
+  // Validate fixed directions completeness
+  if (tour.hasFixedDirections && tour.sites && tour.sites.length >= 2) {
+    const expectedTransitions = tour.sites.length - 1
+    const segments = tour.directionSegments || []
+
+    // Count unique transitions that have at least one segment
+    const transitionsWithDirections = new Set<string>()
+    for (const seg of segments) {
+      transitionsWithDirections.add(`${seg.fromSiteId}-${seg.toSiteId}`)
+    }
+
+    const completedTransitions = transitionsWithDirections.size
+
+    if (completedTransitions < expectedTransitions) {
+      issues.push({
+        field: 'directions',
+        label: 'Fixed Directions',
+        message: `Fixed directions incomplete: ${completedTransitions}/${expectedTransitions} transitions have directions`
+      })
+    }
+  }
+
   return issues
 }
 
