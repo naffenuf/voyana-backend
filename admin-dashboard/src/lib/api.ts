@@ -186,8 +186,11 @@ export const toursApi = {
     return response.data.tour;
   },
 
-  delete: async (id: string) => {
-    await api.delete(`/api/tours/${id}`);
+  delete: async (id: string, deleteSites: boolean = false): Promise<{ sitesDeleted?: number }> => {
+    const response = await api.delete(`/api/tours/${id}`, {
+      params: { delete_sites: deleteSites }
+    });
+    return response.data;
   },
 
   generateAudioForSites: async (id: string) => {

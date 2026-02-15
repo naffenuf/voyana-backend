@@ -6,6 +6,7 @@ import { useAuth } from '../lib/auth';
 import { toursApi, adminToursApi } from '../lib/api';
 import { getValidationSummary } from '../lib/validation';
 import PublishTourDialog from '../components/PublishTourDialog';
+import DeleteTourDialog from '../components/DeleteTourDialog';
 import type { Tour } from '../types';
 
 // Tour list item component
@@ -108,6 +109,7 @@ export default function Tours() {
   const [page, setPage] = useState(1);
   const [isUploading, setIsUploading] = useState(false);
   const [publishDialogTour, setPublishDialogTour] = useState<Tour | null>(null);
+  const [deleteDialogTour, setDeleteDialogTour] = useState<Tour | null>(null);
   const toursPerPage = 20;
 
   // Query 1: Your Tours (creators only)
@@ -166,10 +168,16 @@ export default function Tours() {
   const totalPages = data?.total ? Math.ceil(data.total / toursPerPage) : 0;
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => toursApi.delete(id),
-    onSuccess: () => {
+    mutationFn: ({ id, deleteSites }: { id: string; deleteSites: boolean }) =>
+      toursApi.delete(id, deleteSites),
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['tours'] });
-      toast.success('Tour deleted successfully');
+      if (variables.deleteSites && data.sitesDeleted !== undefined) {
+        toast.success(`Tour deleted with ${data.sitesDeleted} site${data.sitesDeleted !== 1 ? 's' : ''}`);
+      } else {
+        toast.success('Tour deleted successfully');
+      }
+      setDeleteDialogTour(null);
     },
     onError: (error: any) => {
       toast.error(error.response?.data?.error || 'Failed to delete tour');
@@ -189,8 +197,7 @@ export default function Tours() {
   });
 
   const handleDelete = (tour: Tour) => {
-    if (!confirm(`Are you sure you want to delete "${tour.name}"?`)) return;
-    deleteMutation.mutate(tour.id);
+    setDeleteDialogTour(tour);
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -438,6 +445,22 @@ export default function Tours() {
           onClose={() => setPublishDialogTour(null)}
           onConfirm={() => publishMutation.mutate(publishDialogTour.id)}
           isPending={publishMutation.isPending}
+        />
+      )}
+
+      {/* Delete Dialog */}
+      {deleteDialogTour && (
+        <DeleteTourDialog
+          tour={deleteDialogTour}
+          isOpen={!!deleteDialogTour}
+          onClose={() => setDeleteDialogTour(null)}
+          onDeleteTourOnly={() =>
+            deleteMutation.mutate({ id: deleteDialogTour.id, deleteSites: false })
+          }
+          onDeleteWithSites={() =>
+            deleteMutation.mutate({ id: deleteDialogTour.id, deleteSites: true })
+          }
+          isPending={deleteMutation.isPending}
         />
       )}
     </div>

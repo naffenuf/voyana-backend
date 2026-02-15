@@ -452,9 +452,15 @@ def delete_tour(tour_id):
     """
     Delete a tour (owner or admin only).
 
+    Query params:
+        - delete_sites: If 'true', also delete sites that are ONLY in this tour
+                       (sites shared with other tours are preserved)
+
     Returns:
         {
-            "message": "Tour deleted successfully"
+            "message": "Tour deleted successfully",
+            "sitesDeleted": 0,  // Only present if delete_sites=true
+            "s3FilesDeleted": 0  // Only present if delete_sites=true
         }
     """
     user_id = int(get_jwt_identity())
@@ -471,12 +477,68 @@ def delete_tour(tour_id):
         return jsonify({'error': 'Unauthorized'}), 403
 
     tour_name = tour.name
-    db.session.delete(tour)
-    db.session.commit()
+    sites_deleted = 0
+    s3_files_deleted = 0
+
+    # Check if we should also delete sites
+    delete_sites = request.args.get('delete_sites', 'false').lower() == 'true'
+
+    try:
+        if delete_sites:
+            # Get all site IDs for this tour
+            tour_site_ids = [ts.site_id for ts in tour.tour_sites]
+
+            if tour_site_ids:
+                # Efficient query: find sites that are ONLY in this tour
+                # Subquery gets all site_ids that appear in OTHER tours
+                from sqlalchemy import and_
+                shared_site_ids_subquery = db.session.query(TourSite.site_id).filter(
+                    TourSite.tour_id != tour_id
+                ).subquery()
+
+                # Get sites that are in this tour but NOT in the shared subquery
+                sites_to_delete = Site.query.filter(
+                    Site.id.in_(tour_site_ids),
+                    ~Site.id.in_(shared_site_ids_subquery)
+                ).all()
+
+                # Delete sites with S3 cleanup
+                if sites_to_delete:
+                    from app.services.site_service import bulk_delete_sites_with_assets
+
+                    # Log what we're deleting
+                    for site in sites_to_delete:
+                        current_app.logger.info(f'Deleting site {site.id} ({site.title}) - only in tour {tour_id}')
+
+                    result = bulk_delete_sites_with_assets(sites_to_delete)
+                    sites_deleted = result['sites_deleted']
+                    s3_files_deleted = result['s3_files_deleted']
+
+                    current_app.logger.info(
+                        f'Deleted {sites_deleted} sites and {s3_files_deleted} S3 files for tour {tour_id}'
+                    )
+
+                # Log sites that were preserved
+                preserved_count = len(tour_site_ids) - sites_deleted
+                if preserved_count > 0:
+                    current_app.logger.info(f'Preserved {preserved_count} sites that are shared with other tours')
+
+        db.session.delete(tour)
+        db.session.commit()
+
+    except Exception as e:
+        db.session.rollback()
+        current_app.logger.error(f'Error deleting tour {tour_id}: {e}', exc_info=True)
+        return jsonify({'error': 'Failed to delete tour'}), 500
 
     current_app.logger.info(f'Deleted tour: {tour_id} ({tour_name})')
 
-    return jsonify({'message': 'Tour deleted successfully'}), 200
+    response = {'message': 'Tour deleted successfully'}
+    if delete_sites:
+        response['sitesDeleted'] = sites_deleted
+        response['s3FilesDeleted'] = s3_files_deleted
+
+    return jsonify(response), 200
 
 
 @tours_bp.route('/nearby', methods=['GET'])

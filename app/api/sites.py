@@ -534,19 +534,11 @@ def delete_site(site_id):
     affected_tours = [tour_site.tour for tour_site in site.tour_sites]
     tour_count = len(affected_tours)
 
-    # Collect S3 URLs to delete
-    s3_urls_to_delete = []
-
-    if site.image_url:
-        s3_urls_to_delete.append(site.image_url)
-
-    if site.audio_url:
-        s3_urls_to_delete.append(site.audio_url)
-
-    if site.google_photo_references:
-        s3_urls_to_delete.extend(site.google_photo_references)
-
     site_title = site.title
+
+    # Delete S3 assets using service (but don't delete from DB yet - we need to recalc tours first)
+    from app.services.site_service import delete_site_with_assets
+    s3_result = delete_site_with_assets(site, skip_db_delete=True)
 
     # Delete the site from database (CASCADE will delete tour_sites relationships)
     db.session.delete(site)
@@ -587,20 +579,13 @@ def delete_site(site_id):
     if affected_tours:
         db.session.commit()
 
-    # Delete S3 files
-    from app.services.s3_service import delete_file_from_s3
-    deleted_count = 0
-    for url in s3_urls_to_delete:
-        if delete_file_from_s3(url):
-            deleted_count += 1
-
     current_app.logger.info(
         f'Deleted site: {site_id} ({site_title}), removed from {tour_count} tours, '
-        f'deleted {deleted_count}/{len(s3_urls_to_delete)} S3 files'
+        f'deleted {s3_result["s3_files_deleted"]} S3 files'
     )
 
     return jsonify({
         'message': 'Site deleted successfully',
         'removedFromTours': tour_count,
-        'deletedS3Files': deleted_count
+        'deletedS3Files': s3_result['s3_files_deleted']
     }), 200
