@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:modal.com)",
+      "WebFetch(domain:replicate.com)",
+      "WebFetch(domain:github.com)"
+    ]
+  }
+}

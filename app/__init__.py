@@ -539,6 +539,76 @@ def register_cli_commands(app):
         app.logger.info(f'   Hero Image: {nyc.hero_image_url}')
         app.logger.info(f'   Hero Title: {nyc.hero_title}')
         app.logger.info('')
-        app.logger.info('⚠️  IMPORTANT: Upload NYC hero image to S3 at:')
+        app.logger.info('IMPORTANT: Upload NYC hero image to S3 at:')
         app.logger.info('   s3://voyana-tours/city-heroes/nyc-night.jpg')
         app.logger.info('   Or update the hero_image_url in the database after uploading.')
+
+    @app.cli.command()
+    def fix_coordinates():
+        """Fix site coordinates from coordinates_export JSON file."""
+        import json
+        import uuid as uuid_module
+        from pathlib import Path
+        from app.models.site import Site
+
+        # Look for the JSON file
+        json_path = Path(__file__).parent.parent / 'coordinates_export_2026-02-19.json'
+        if not json_path.exists():
+            app.logger.error(f'Coordinates file not found at {json_path}')
+            return
+
+        with open(json_path, 'r') as f:
+            data = json.load(f)
+
+        app.logger.info(f'Processing {data["total_sites"]} sites from {len(data["tours"])} tours...')
+
+        updated_count = 0
+        not_found_count = 0
+        error_count = 0
+
+        for tour in data['tours']:
+            app.logger.info(f'\nTour: {tour["tour_name"]} ({tour["site_count"]} sites)')
+
+            for site_data in tour['sites']:
+                site_id = site_data['site_id']
+                try:
+                    site = Site.query.get(uuid_module.UUID(site_id))
+
+                    if not site:
+                        app.logger.warning(f'  Site not found: {site_id} ({site_data["title"]})')
+                        not_found_count += 1
+                        continue
+
+                    # Log before values
+                    old_lat, old_lng = site.latitude, site.longitude
+                    new_lat, new_lng = site_data['latitude'], site_data['longitude']
+
+                    # Update coordinates
+                    site.latitude = new_lat
+                    site.longitude = new_lng
+
+                    # Update place_id if provided
+                    if site_data.get('place_id'):
+                        site.place_id = site_data['place_id']
+
+                    app.logger.info(f'  Updated: {site.title}')
+                    app.logger.info(f'    ({old_lat}, {old_lng}) -> ({new_lat}, {new_lng})')
+                    updated_count += 1
+
+                except Exception as e:
+                    app.logger.error(f'  Error updating {site_id}: {e}')
+                    error_count += 1
+
+        # Commit all changes
+        try:
+            db.session.commit()
+            app.logger.info(f'\nCommitted {updated_count} updates to database')
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f'\nFailed to commit: {e}')
+            return
+
+        app.logger.info(f'\nSummary:')
+        app.logger.info(f'  Updated: {updated_count}')
+        app.logger.info(f'  Not found: {not_found_count}')
+        app.logger.info(f'  Errors: {error_count}')

@@ -1,0 +1,397 @@
+{
+  "total_sites": 48,
+  "tours": [
+    {
+      "site_count": 7,
+      "sites": [
+        {
+          "latitude": 38.7161743,
+          "longitude": -9.1667946,
+          "place_id": "ChIJFfe5foEzGQ0RRsM8qXffSEo",
+          "site_id": "79e9a523-1c2a-4609-bd49-163b45fc5d2f",
+          "title": "Mercado de Campo de Ourique"
+        },
+        {
+          "latitude": 38.7163701,
+          "longitude": -9.167294,
+          "place_id": "ChIJzVRiU2czGQ0R0UU6wV06K-w",
+          "site_id": "0cd2c022-728c-46df-8574-73684c707514",
+          "title": "World's best chocolate cake"
+        },
+        {
+          "latitude": 38.716679,
+          "longitude": -9.1626525,
+          "place_id": "ChIJQyFIU2EzGQ0R5wR6c19HE0k",
+          "site_id": "c380966d-7397-485d-a758-581770a91fa8",
+          "title": "Hikidashi Taberna Japonesa"
+        },
+        {
+          "latitude": 38.7167116,
+          "longitude": -9.162497,
+          "place_id": "ChIJ7wPpVGEzGQ0Rpt1XNNNvVrk",
+          "site_id": "466cd05e-f6ac-4259-b01b-ef1a7ed20524",
+          "title": "Casa Fernando Pessoa"
+        },
+        {
+          "latitude": 38.7166505,
+          "longitude": -9.1615804,
+          "place_id": "ChIJl4la-mMzGQ0Ra9zraOpjgcw",
+          "site_id": "432ea235-2ad4-40da-87cf-ed34e87fc53b",
+          "title": "Raffi's Bagels"
+        },
+        {
+          "latitude": 38.7157063,
+          "longitude": -9.163820399999999,
+          "place_id": "ChIJufY6OWEzGQ0RlAL4z3cgkEY",
+          "site_id": "3f129516-ece1-4344-bbe2-15f110becb94",
+          "title": "Shop1One - Campo de Ourique"
+        },
+        {
+          "latitude": 38.7153691,
+          "longitude": -9.163704700000002,
+          "place_id": "ChIJba78P2EzGQ0RM7v8st1bn8U",
+          "site_id": "ee58dcdf-7b0c-4a79-8c37-9f6ed9e8892f",
+          "title": "Tasca da Esquina"
+        }
+      ],
+      "tour_id": "ca00d9dd-9683-4c4b-aa3b-daeacc9559b4",
+      "tour_name": "Core Campo de Ourique Walk"
+    },
+    {
+      "site_count": 7,
+      "sites": [
+        {
+          "latitude": 38.711757999999996,
+          "longitude": -9.143701,
+          "place_id": "ChIJmT3Eln80GQ0R4l4dTjqw1_4",
+          "site_id": "3e2bded5-efc0-4752-b659-fe553403693a",
+          "title": "Bad Bones Tattoos"
+        },
+        {
+          "latitude": 38.7117856,
+          "longitude": -9.144595299999999,
+          "place_id": "ChIJ5z066n80GQ0RH3oTNM2vCCI",
+          "site_id": "ef388069-399a-4308-81e7-dc00567b0ee3",
+          "title": "Zé dos Bois gallery"
+        },
+        {
+          "latitude": 38.713465,
+          "longitude": -9.145401399999999,
+          "place_id": "ChIJrYGUPwAzGQ0RZrKDCp9XY0s",
+          "site_id": "a1fbece7-5608-4454-b3d7-d8ab581b1823",
+          "title": "Galeria Tereza Seabra"
+        },
+        {
+          "latitude": 38.7133219,
+          "longitude": -9.145399099999999,
+          "place_id": "ChIJUUWbAoAzGQ0RqhsqGad885c",
+          "site_id": "0247fed8-13f8-405e-87c6-3e00e926bbd1",
+          "title": "Traça Pombalina - Unipessoal, Lda."
+        },
+        {
+          "latitude": 38.712960100000004,
+          "longitude": -9.145342699999999,
+          "place_id": "ChIJSQC9AIAzGQ0R6PmYb2aKVAs",
+          "site_id": "c03941d7-7180-4518-b19e-05aa207d3e3a",
+          "title": "A Fábrica dos Chapéus"
+        },
+        {
+          "latitude": 38.7125111,
+          "longitude": -9.145804,
+          "place_id": "ChIJlfLUBoA0GQ0RnFUv6ztnECU",
+          "site_id": "2b8e990a-ecf1-4f4a-acc0-6ed0760b9e8d",
+          "title": "Oficina Marques - Lisbon Art Gallery & Shop"
+        },
+        {
+          "latitude": 38.711696499999995,
+          "longitude": -9.1455322,
+          "place_id": "ChIJa0RQiuw1GQ0R3_g1dx72v88",
+          "site_id": "d99597f6-8248-4c8e-8957-06cc5485eb3b",
+          "title": "Cannabis Store Canna-Cali"
+        }
+      ],
+      "tour_id": "96baa567-a5c1-45e6-8b97-9626aa599745",
+      "tour_name": "Bairro Alto Central Walk"
+    },
+    {
+      "site_count": 4,
+      "sites": [
+        {
+          "latitude": 38.7153042,
+          "longitude": -9.1441702,
+          "place_id": "ChIJYQgAN4AzGQ0RoeNtM3J56xs",
+          "site_id": "c87aa9fa-bf94-4d0c-92f5-039426a19548",
+          "title": "Miradouro de São Pedro de Alcântara"
+        },
+        {
+          "latitude": 38.7138686,
+          "longitude": -9.1440053,
+          "place_id": "ChIJFfhDbIAzGQ0RCJA_u_e4sdM",
+          "site_id": "ff130bec-49bd-43aa-b9c7-b3129c463ca1",
+          "title": "Lumi Rooftop"
+        },
+        {
+          "latitude": 38.714471499999995,
+          "longitude": -9.1459706,
+          "place_id": "ChIJHaTrOpEzGQ0RMBwWAY8gQ7I",
+          "site_id": "8358be0d-cd9a-4eb1-a555-8cd523aa81ad",
+          "title": "Mr.Lucas Barbershop"
+        },
+        {
+          "latitude": 38.714973400000005,
+          "longitude": -9.1447725,
+          "place_id": "ChIJdfzXMIAzGQ0RBHacOCOs3wE",
+          "site_id": "a9f62336-04fa-4036-b8e3-baf913448a49",
+          "title": "Independente Principe Real"
+        }
+      ],
+      "tour_id": "62d57d6f-27a1-4144-a774-c73d5b225f64",
+      "tour_name": "Bairro Alto Core Exploration"
+    },
+    {
+      "site_count": 7,
+      "sites": [
+        {
+          "latitude": 38.714994399999995,
+          "longitude": -9.1246835,
+          "place_id": "ChIJfZ_qo4ozGQ0RN07tPE-K274",
+          "site_id": "30873a35-9ce4-4e07-a8ea-dbcc7f211ad3",
+          "title": "National Pantheon"
+        },
+        {
+          "latitude": 38.715247999999995,
+          "longitude": -9.1262075,
+          "place_id": "ChIJbyCqvM8zGQ0R8NBAZs_9Fcw",
+          "site_id": "da7650aa-021b-434d-9a19-a3493ee4b774",
+          "title": "Feira da Ladra"
+        },
+        {
+          "latitude": 38.7148222,
+          "longitude": -9.1309139,
+          "place_id": "ChIJa7qyxYkzGQ0RyvdtjAusrR4",
+          "site_id": "9ee7a68a-89ca-4f09-a320-74d06180dd38",
+          "title": "Graça do Vinho"
+        },
+        {
+          "latitude": 38.7147174,
+          "longitude": -9.129204699999999,
+          "place_id": "ChIJOd5L-IkzGQ0RsP4f6QSZ7lM",
+          "site_id": "06d82034-e9b4-43c0-ae1a-d97390ac83ad",
+          "title": "Bistrô Gato pardo"
+        },
+        {
+          "latitude": 38.7144957,
+          "longitude": -9.1280865,
+          "place_id": "ChIJSWB63MUzGQ0RSh0OEtMMtRg",
+          "site_id": "8117a5f3-229e-4d20-9f44-14d20681f68a",
+          "title": "Mosteiro de São Vicente de Fora"
+        },
+        {
+          "latitude": 38.715697999999996,
+          "longitude": -9.1255616,
+          "place_id": "ChIJw7UdjYozGQ0R42AUg6HD5oM",
+          "site_id": "c22b7d8a-ccc9-4ab6-962d-91afd12670cc",
+          "title": "Santa Clara dos Cogumelos"
+        },
+        {
+          "latitude": 38.7155902,
+          "longitude": -9.1253488,
+          "place_id": "ChIJNbBpk4ozGQ0RdwIlmyMCSFU",
+          "site_id": "4e8aeeb1-8885-47cc-afde-500c964933dd",
+          "title": "As Marias com Chocolate"
+        }
+      ],
+      "tour_id": "5340913f-f855-473e-9f1a-110bbf096b13",
+      "tour_name": "Graça Historic Core Stroll"
+    },
+    {
+      "site_count": 5,
+      "sites": [
+        {
+          "latitude": 38.7164509,
+          "longitude": -9.1315937,
+          "place_id": "ChIJYzmNq4kzGQ0R8PmcMe8PyEY",
+          "site_id": "bf16d7cd-b02a-4f55-8846-3a5d63fbd48a",
+          "title": "Miradouro da Graça"
+        },
+        {
+          "latitude": 38.716624599999996,
+          "longitude": -9.1314958,
+          "place_id": "ChIJbzpOqYkzGQ0RqbPjj14CQKA",
+          "site_id": "edb5edaa-e954-49b2-8737-824dbee108f1",
+          "title": "Esplanada da Graça"
+        },
+        {
+          "latitude": 38.71648880000001,
+          "longitude": -9.129401999999999,
+          "place_id": "ChIJd8Xqg4kzGQ0RbARjBd8ZjoM",
+          "site_id": "2b3e0e4e-d36b-4e3a-b7fd-212f581b8bdc",
+          "title": "Damas"
+        },
+        {
+          "latitude": 38.7160061,
+          "longitude": -9.1305006,
+          "place_id": "ChIJE6fgookzGQ0RdCRfG0FPNhk",
+          "site_id": "2f0240f8-4db2-4842-a6a4-031c99b0be9b",
+          "title": "Botequim"
+        },
+        {
+          "latitude": 38.716504,
+          "longitude": -9.131222800000002,
+          "place_id": "ChIJE0CZB4kzGQ0ReLxDDk_nQpQ",
+          "site_id": "fc5ea1fc-0770-4ca6-8d4e-376879e02aa0",
+          "title": "Church of Our Lady of Grace"
+        }
+      ],
+      "tour_id": "9101bb4b-80fa-4e2b-bd17-08a5fb5716c2",
+      "tour_name": "Graça Hilltop Exploration"
+    },
+    {
+      "site_count": 7,
+      "sites": [
+        {
+          "latitude": 38.7192133,
+          "longitude": -9.1328298,
+          "place_id": "ChIJV32DNI8zGQ0R9GqiWeuNH2E",
+          "site_id": "72def36e-8f16-43ce-8e9e-12c81bccadd1",
+          "title": "Miradouro da Senhora do Monte"
+        },
+        {
+          "latitude": 38.719057,
+          "longitude": -9.1305043,
+          "place_id": "ChIJ1RWxNYkzGQ0Rc-qVuo-erdM",
+          "site_id": "c16721b4-d408-4ad4-8fd2-17805001e05e",
+          "title": "Maria Pia Sport Club"
+        },
+        {
+          "latitude": 38.719326900000006,
+          "longitude": -9.130057899999999,
+          "place_id": "ChIJIQ-ntI4zGQ0RiniMx6b7twk",
+          "site_id": "f6012ab3-03a6-4abe-8089-811d3ebd92f4",
+          "title": "Má Lingua"
+        },
+        {
+          "latitude": 38.7185442,
+          "longitude": -9.1292385,
+          "place_id": "ChIJ23C0arwzGQ0RaPZhjKJgkg0",
+          "site_id": "aa51fca7-75a4-4352-ab71-77f34d141078",
+          "title": "Estado de Graça - Cocktail bar"
+        },
+        {
+          "latitude": 38.7185244,
+          "longitude": -9.1290891,
+          "place_id": "ChIJ58uK34szGQ0RT1vFf9pYJFg",
+          "site_id": "fa1dd534-b629-41fe-8a76-e23f97e97c35",
+          "title": "Vila Berta à Graça"
+        },
+        {
+          "latitude": 38.7185163,
+          "longitude": -9.1300376,
+          "place_id": "ChIJb5MNI4kzGQ0R2jEhapQAiIQ",
+          "site_id": "5e1022dc-d03d-4cee-bc9b-9025e22c7e3e",
+          "title": "Saga"
+        },
+        {
+          "latitude": 38.718439200000006,
+          "longitude": -9.1320145,
+          "place_id": "ChIJ6aNHEq8zGQ0RmO10_hrUbao",
+          "site_id": "a04045bb-ce82-45a4-a697-23bf63f1ef6f",
+          "title": "8a Graça"
+        }
+      ],
+      "tour_id": "198d6064-6875-4d1d-aad7-d736e09828bc",
+      "tour_name": "Graça Northern Vistas Walk"
+    },
+    {
+      "site_count": 5,
+      "sites": [
+        {
+          "latitude": 38.720257,
+          "longitude": -9.1357429,
+          "place_id": "ChIJ-R6VlIUzGQ0RX8x1jtg9lh0",
+          "site_id": "38da9068-a315-4101-9668-b75a3a7975b2",
+          "title": "Restaurant - Cervejaria Ramiro"
+        },
+        {
+          "latitude": 38.7210281,
+          "longitude": -9.1351233,
+          "place_id": "ChIJ44nlhIUzGQ0R9_uLA-gyM-c",
+          "site_id": "45a563a4-75bc-48cf-8d7c-26e6f9ebe689",
+          "title": "A Vida Portuguesa"
+        },
+        {
+          "latitude": 38.720843,
+          "longitude": -9.13467,
+          "place_id": "ChIJx3N2iIUzGQ0ROsa_StTlgNo",
+          "site_id": "bb94befd-ca14-4822-bd19-24d1bdece9e2",
+          "title": "Casa Independente"
+        },
+        {
+          "latitude": 38.7203795,
+          "longitude": -9.134987599999999,
+          "place_id": "ChIJmwddjIUzGQ0RnIEc8g8NuOE",
+          "site_id": "1abe316a-701e-40bc-879d-5fe7639a098e",
+          "title": "Josephine Bistro"
+        },
+        {
+          "latitude": 38.719934599999995,
+          "longitude": -9.1357112,
+          "place_id": "ChIJKZOx64UzGQ0REsHkwGOOEsc",
+          "site_id": "7b3df9b3-ad5c-4ffb-ac01-2dcdfc72bf93",
+          "title": "Chafariz do Intendente / Desterro"
+        }
+      ],
+      "tour_id": "09013ba5-35d2-4f71-aa03-07fad60757a2",
+      "tour_name": "Intendente Square Exploration"
+    },
+    {
+      "site_count": 6,
+      "sites": [
+        {
+          "latitude": 38.7222863,
+          "longitude": -9.1349015,
+          "place_id": "ChIJm_nyBLAzGQ0R-myWXv5qfBI",
+          "site_id": "d5a083e7-a1f7-4c97-9a32-6f4e8b12fea6",
+          "title": "Dois Corvos Intendente Taproom"
+        },
+        {
+          "latitude": 38.721942999999996,
+          "longitude": -9.132017,
+          "place_id": "ChIJOQK8q48zGQ0RAEiuMGGnEo0",
+          "site_id": "dc9e7f61-f1d6-4b6b-95f0-ced514aa3319",
+          "title": "Fab Lab Lisbon"
+        },
+        {
+          "latitude": 38.7231551,
+          "longitude": -9.132624999999999,
+          "place_id": "ChIJ87BWxo8zGQ0RPCrIsozG91E",
+          "site_id": "aac73a1e-36fb-417d-a771-e36099a6e75d",
+          "title": "A Carvoaria"
+        },
+        {
+          "latitude": 38.7231034,
+          "longitude": -9.131439000000002,
+          "place_id": "ChIJd7XiNY4zGQ0R2htizDT-qfw",
+          "site_id": "21051571-3503-4b93-96b9-400c51fde1d0",
+          "title": "Annapurna"
+        },
+        {
+          "latitude": 38.724846299999996,
+          "longitude": -9.1329652,
+          "place_id": "ChIJTW3APZAzGQ0Rt3knkxq35Ms",
+          "site_id": "cdb3a40e-c2be-4d98-b19e-31f547910080",
+          "title": "Brick Cafe Lisboa"
+        },
+        {
+          "latitude": 38.7244856,
+          "longitude": -9.1345034,
+          "place_id": "ChIJmxNZB5AzGQ0RhlYes6feRwY",
+          "site_id": "dbe85f7d-8f79-4f74-a908-4a14664215f0",
+          "title": "Church of Our Lady of the Angels⛪"
+        }
+      ],
+      "tour_id": "9f231b40-1b58-47d3-8101-fcf1ddd03cf1",
+      "tour_name": "Anjos Neighborhood Walk"
+    }
+  ]
+}
