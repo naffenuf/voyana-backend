@@ -545,9 +545,8 @@ def register_cli_commands(app):
 
     @app.cli.command()
     def fix_coordinates():
-        """Fix site coordinates from coordinates_export JSON file."""
+        """Fix site coordinates from coordinates_export JSON file (matches by place_id)."""
         import json
-        import uuid as uuid_module
         from pathlib import Path
         from app.models.site import Site
 
@@ -560,22 +559,30 @@ def register_cli_commands(app):
         with open(json_path, 'r') as f:
             data = json.load(f)
 
-        app.logger.info(f'Processing {data["total_sites"]} sites from {len(data["tours"])} tours...')
+        print(f'Processing {data["total_sites"]} sites from {len(data["tours"])} tours...')
 
         updated_count = 0
         not_found_count = 0
         error_count = 0
 
         for tour in data['tours']:
-            app.logger.info(f'\nTour: {tour["tour_name"]} ({tour["site_count"]} sites)')
+            print(f'\nTour: {tour["tour_name"]} ({tour["site_count"]} sites)')
 
             for site_data in tour['sites']:
-                site_id = site_data['site_id']
+                place_id = site_data.get('place_id')
+                title = site_data.get('title', 'Unknown')
+
+                if not place_id:
+                    print(f'  No place_id for: {title}')
+                    error_count += 1
+                    continue
+
                 try:
-                    site = Site.query.get(uuid_module.UUID(site_id))
+                    # Match by place_id instead of site_id
+                    site = Site.query.filter_by(place_id=place_id).first()
 
                     if not site:
-                        app.logger.warning(f'  Site not found: {site_id} ({site_data["title"]})')
+                        print(f'  Not found (place_id={place_id}): {title}')
                         not_found_count += 1
                         continue
 
@@ -587,28 +594,24 @@ def register_cli_commands(app):
                     site.latitude = new_lat
                     site.longitude = new_lng
 
-                    # Update place_id if provided
-                    if site_data.get('place_id'):
-                        site.place_id = site_data['place_id']
-
-                    app.logger.info(f'  Updated: {site.title}')
-                    app.logger.info(f'    ({old_lat}, {old_lng}) -> ({new_lat}, {new_lng})')
+                    print(f'  Updated: {site.title}')
+                    print(f'    ({old_lat}, {old_lng}) -> ({new_lat}, {new_lng})')
                     updated_count += 1
 
                 except Exception as e:
-                    app.logger.error(f'  Error updating {site_id}: {e}')
+                    print(f'  Error updating {title}: {e}')
                     error_count += 1
 
         # Commit all changes
         try:
             db.session.commit()
-            app.logger.info(f'\nCommitted {updated_count} updates to database')
+            print(f'\nCommitted {updated_count} updates to database')
         except Exception as e:
             db.session.rollback()
-            app.logger.error(f'\nFailed to commit: {e}')
+            print(f'\nFailed to commit: {e}')
             return
 
-        app.logger.info(f'\nSummary:')
-        app.logger.info(f'  Updated: {updated_count}')
-        app.logger.info(f'  Not found: {not_found_count}')
-        app.logger.info(f'  Errors: {error_count}')
+        print(f'\nSummary:')
+        print(f'  Updated: {updated_count}')
+        print(f'  Not found: {not_found_count}')
+        print(f'  Errors: {error_count}')
