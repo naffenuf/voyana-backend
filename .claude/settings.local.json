@@ -4,7 +4,9 @@
       "WebSearch",
       "WebFetch(domain:modal.com)",
       "WebFetch(domain:replicate.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:developers.openai.com)",
+      "WebFetch(domain:openai.com)"
     ]
   }
 }
