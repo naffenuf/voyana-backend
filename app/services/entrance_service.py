@@ -90,64 +90,49 @@ def _coords(obj):
     return None
 
 
-def _belongs_to(entrance, place_id: str) -> bool:
+def _is_own_preferred(entrance, place_id: str) -> bool:
     """
-    Whether an entrance is this place's own.
+    Whether an entrance is this site's own main entrance.
 
-    A response can include every entrance on a shared building, including
-    other tenants' doors. Each entrance carries the place it serves, so
-    anything naming a different place is discarded - a neighbour's door is
-    worse than the centroid. Entrances with no place named are kept.
+    Requires both the PREFERRED tag and the site's own place ID. The place ID
+    check matters because a response includes entrances belonging to other
+    places: the containing building, and in a shared premise the neighbouring
+    tenant's door. Brooklyn Brewery and Brooklyn Bowl share 73 Wythe Ave, and
+    that building's recorded entrance is Bowl's, around the corner from the
+    brewery's - so an entrance attributed to anything but the site itself
+    cannot be assumed to be the site's.
     """
+    if 'PREFERRED' not in (entrance.get('tags') or []):
+        return False
     place = entrance.get('place')
-    return not place or place.split('/')[-1] == place_id
+    return bool(place) and place.split('/')[-1] == place_id
 
 
 def extract_entrance(result: dict, place_id: str, centroid):
     """
-    Pick the best routing coordinate from a SearchDestinations response.
+    Return the site's own preferred entrance, or None.
 
-    Preference order:
-      1. An entrance tagged PREFERRED (the main entrance).
-      2. Any other entrance belonging to this place.
-      3. A navigation point that supports WALK.
+    Nothing else is substituted. Navigation points are points on the street
+    network rather than the site's door, and entrances belonging to the
+    containing building are not attributable to one tenant - neither is better
+    than the human-placed centroid, so both are ignored and the site keeps its
+    stored coordinates.
 
-    `centroid` is the site's stored (lat, lng), used to break ties: a place
-    can return several entrances all tagged PREFERRED, so the nearest one is
-    chosen for a stable, minimal shift rather than depending on list order.
+    `centroid` only breaks ties: a site can tag more than one entrance
+    PREFERRED, and choosing the nearest keeps the result stable across runs
+    instead of depending on response order.
 
-    Returns (latitude, longitude, source), or None when the response offers
-    nothing better than the centroid.
+    Returns (latitude, longitude, 'preferred_entrance') or None.
     """
     destinations = result.get('destinations') or []
     if not destinations:
         return None
-    destination = destinations[0]
 
-    entrances = [e for e in (destination.get('entrances') or [])
-                 if _coords(e) and _belongs_to(e, place_id)]
+    entrances = [e for e in (destinations[0].get('entrances') or [])
+                 if _coords(e) and _is_own_preferred(e, place_id)]
+    if not entrances:
+        return None
 
-    preferred = [e for e in entrances if 'PREFERRED' in (e.get('tags') or [])]
-    candidates = preferred or entrances
-    if candidates:
-        best = min(candidates,
-                   key=lambda e: _distance(centroid, _coords(e)))
-        source = 'preferred_entrance' if preferred else 'entrance'
-        return (*_coords(best), source)
-
-    # A large site returns many perimeter access points - The Battery has
-    # eight walkable ones spread from 118m to 284m out. List order is
-    # arbitrary, so take the nearest rather than whichever came first.
-    walkable = [p for p in (destination.get('navigationPoints') or [])
-                if 'WALK' in (p.get('travelModes') or []) and _coords(p)]
-    if walkable:
-        best = min(walkable, key=lambda p: _distance(centroid, _coords(p)))
-        return (*_coords(best), 'walk_navigation_point')
-
-    return None
-
-
-def _distance(a, b) -> float:
-    """Straight-line metres between two (lat, lng) pairs."""
     from app.services.route_planner import haversine
-    return haversine(a, b)
+    best = min(entrances, key=lambda e: haversine(centroid, _coords(e)))
+    return (*_coords(best), 'preferred_entrance')

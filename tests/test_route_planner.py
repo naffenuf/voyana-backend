@@ -130,146 +130,92 @@ class TestStartScoring:
 
 class TestExtractEntrance:
     """
-    Response shapes follow the live Geocoding v4 contract: entrances and
-    navigationPoints are siblings of primary, and each entrance names the
-    place it serves.
+    Only a site's own PREFERRED entrance is used. Anything else - the
+    containing building's entrance, a neighbouring tenant's door, a street
+    navigation point - is not attributable to the site, so the site keeps its
+    stored centroid instead.
     """
 
-    PLACE = 'ChIJtest'
-    CENTROID = (40.7000, -74.0000)
+    PLACE = 'ChIJbrewery'
+    CENTROID = (40.7213069, -73.9574503)
 
-    def _response(self, **destination):
-        destination.setdefault('primary', {'location': {
-            'latitude': self.CENTROID[0], 'longitude': self.CENTROID[1]}})
+    def _response(self, entrances=None, navigation_points=None, primary=None):
+        destination = {'primary': primary or {'location': {
+            'latitude': self.CENTROID[0], 'longitude': self.CENTROID[1]}}}
+        if entrances is not None:
+            destination['entrances'] = entrances
+        if navigation_points is not None:
+            destination['navigationPoints'] = navigation_points
         return {'destinations': [destination]}
 
-    def _loc(self, lat, lng, **extra):
-        return {'location': {'latitude': lat, 'longitude': lng},
-                'place': f'places/{self.PLACE}', **extra}
+    def _entrance(self, lat, lng, place=None, tags=('PREFERRED',)):
+        e = {'location': {'latitude': lat, 'longitude': lng}}
+        if tags:
+            e['tags'] = list(tags)
+        if place:
+            e['place'] = f'places/{place}'
+        return e
 
-    def test_preferred_entrance_wins_over_plain_and_nav_point(self):
-        result = self._response(
-            entrances=[self._loc(40.7001, -74.0001),
-                       self._loc(40.7002, -74.0002, tags=['PREFERRED'])],
-            navigationPoints=[{'location': {'latitude': 40.9, 'longitude': -74.9},
-                               'travelModes': ['WALK']}],
-        )
-        lat, lng, source = extract_entrance(result, self.PLACE, self.CENTROID)
-        assert (round(lat, 4), round(lng, 4)) == (40.7002, -74.0002)
-        assert source == 'preferred_entrance'
-
-    def test_multiple_preferred_picks_nearest_to_centroid(self):
-        """A place can tag several entrances PREFERRED; choice must be stable
-        and minimal rather than dependent on list order."""
-        far = self._loc(40.7050, -74.0050, tags=['PREFERRED'])
-        near = self._loc(40.7001, -74.0001, tags=['PREFERRED'])
-        for entrances in ([far, near], [near, far]):
-            lat, lng, source = extract_entrance(
-                self._response(entrances=entrances), self.PLACE, self.CENTROID)
-            assert (round(lat, 4), round(lng, 4)) == (40.7001, -74.0001)
-            assert source == 'preferred_entrance'
-
-    def test_other_tenants_entrance_is_ignored(self):
-        """Shared buildings return neighbours' doors too; those are worse than
-        the centroid and must not be used."""
+    def test_own_preferred_entrance_is_used(self):
         result = self._response(entrances=[
-            {'location': {'latitude': 40.7001, 'longitude': -74.0001},
-             'tags': ['PREFERRED'], 'place': 'places/ChIJsomeoneelse'},
+            self._entrance(40.7215904, -73.9576480, place=self.PLACE)])
+        assert extract_entrance(result, self.PLACE, self.CENTROID) == (
+            40.7215904, -73.9576480, 'preferred_entrance')
+
+    def test_containing_building_entrance_is_not_used(self):
+        """The Brooklyn Brewery case: 73 Wythe Ave contains both the brewery
+        and Brooklyn Bowl, so the building's recorded door is not the
+        brewery's."""
+        result = self._response(entrances=[
+            self._entrance(40.7215904, -73.9576480, place='ChIJ73WytheAve')])
+        assert extract_entrance(result, self.PLACE, self.CENTROID) is None
+
+    def test_navigation_points_are_never_used(self):
+        """Navigation points are street-network points with no owner, and were
+        what previously put the brewery at Brooklyn Bowl's door."""
+        result = self._response(navigation_points=[
+            {'location': {'latitude': 40.7219006, 'longitude': -73.9577703},
+             'travelModes': ['WALK']},
+            {'location': {'latitude': 40.7219, 'longitude': -73.9577},
+             'travelModes': ['DRIVE', 'WALK']},
         ])
         assert extract_entrance(result, self.PLACE, self.CENTROID) is None
 
-    def test_untagged_entrance_used_when_none_preferred(self):
-        result = self._response(entrances=[self._loc(40.7001, -74.0001)])
-        lat, lng, source = extract_entrance(result, self.PLACE, self.CENTROID)
-        assert source == 'entrance'
-        assert (round(lat, 4), round(lng, 4)) == (40.7001, -74.0001)
+    def test_untagged_own_entrance_is_not_used(self):
+        result = self._response(entrances=[
+            self._entrance(40.7215, -73.9576, place=self.PLACE, tags=None)])
+        assert extract_entrance(result, self.PLACE, self.CENTROID) is None
 
-    def test_falls_back_to_walk_navigation_point(self):
-        result = self._response(navigationPoints=[
-            {'location': {'latitude': 40.71, 'longitude': -74.01},
-             'travelModes': ['DRIVE']},
-            {'location': {'latitude': 40.72, 'longitude': -74.02},
-             'travelModes': ['DRIVE', 'WALK']},
-        ])
-        assert extract_entrance(result, self.PLACE, self.CENTROID) == (
-            40.72, -74.02, 'walk_navigation_point')
+    def test_entrance_without_a_place_is_not_used(self):
+        """No place named means no attribution, so it cannot be trusted."""
+        result = self._response(entrances=[
+            self._entrance(40.7215, -73.9576, place=None)])
+        assert extract_entrance(result, self.PLACE, self.CENTROID) is None
 
-    def test_structure_type_read_from_primary(self):
-        result = self._response()
-        result['destinations'][0]['primary']['structureType'] = 'GROUNDS'
-        assert extract_structure_type(result) == 'GROUNDS'
-        assert extract_structure_type({}) is None
-        assert extract_structure_type(self._response()) is None
+    def test_distance_never_disqualifies_an_own_entrance(self):
+        """A memorial plaza's own gate can be far from its middle."""
+        far = self._entrance(40.7280, -73.9640, place=self.PLACE)
+        result = self._response(entrances=[far])
+        got = extract_entrance(result, self.PLACE, self.CENTROID)
+        assert got is not None and got[2] == 'preferred_entrance'
 
-    def test_point_type_place_with_no_entrance_data(self):
-        """Most small venues are structureType POINT and carry nothing."""
+    def test_multiple_own_preferred_picks_nearest_for_stability(self):
+        near = self._entrance(40.7214, -73.9575, place=self.PLACE)
+        far = self._entrance(40.7250, -73.9600, place=self.PLACE)
+        for entrances in ([far, near], [near, far]):
+            got = extract_entrance(self._response(entrances=entrances),
+                                   self.PLACE, self.CENTROID)
+            assert (round(got[0], 4), round(got[1], 4)) == (40.7214, -73.9575)
+
+    def test_empty_and_missing_responses(self):
         assert extract_entrance({}, self.PLACE, self.CENTROID) is None
         assert extract_entrance({'destinations': []}, self.PLACE, self.CENTROID) is None
         assert extract_entrance(self._response(), self.PLACE, self.CENTROID) is None
-        assert extract_entrance(
-            self._response(navigationPoints=[
-                {'location': {'latitude': 40.71, 'longitude': -74.01},
-                 'travelModes': ['DRIVE']}]),
-            self.PLACE, self.CENTROID) is None
 
 
-class TestShiftLimits:
-    """
-    A large shift is only suspicious relative to how big the place is: a
-    memorial plaza's entrance is legitimately far from its centroid.
-    """
-
-    def _limit(self, structure, override=None):
-        from app.cli_route_planning import _shift_limit
-        return _shift_limit(structure, override)
-
-    def test_limit_scales_with_structure_type(self):
-        assert self._limit('POINT') < self._limit('BUILDING') < self._limit('GROUNDS')
-
-    def test_grounds_tolerates_a_shift_that_would_flag_a_point(self):
-        """The WTC memorial case: ~209m is expected on GROUNDS, wrong on POINT."""
-        shift = 209.4
-        assert shift <= self._limit('GROUNDS')
-        assert shift > self._limit('POINT')
-
-    def test_unknown_structure_falls_back_to_default(self):
-        from app.cli_route_planning import DEFAULT_MAX_SHIFT_M
-        assert self._limit(None) == DEFAULT_MAX_SHIFT_M
-        assert self._limit('SOMETHING_NEW') == DEFAULT_MAX_SHIFT_M
-
-    def test_explicit_override_wins_for_every_type(self):
-        for structure in ('POINT', 'BUILDING', 'GROUNDS', None):
-            assert self._limit(structure, override=42.0) == 42.0
-
-
-class TestNavigationPointChoice:
-    """
-    Large sites return many perimeter access points in arbitrary order, so the
-    nearest walkable one must win rather than whichever is listed first.
-    """
-
-    PLACE = 'ChIJbattery'
-    CENTROID = (40.702901, -74.0153199)
-
-    def _point(self, lat, lng, modes):
-        return {'location': {'latitude': lat, 'longitude': lng},
-                'travelModes': modes}
-
-    def test_nearest_walkable_point_wins_regardless_of_order(self):
-        far = self._point(40.7050, -74.0180, ['WALK'])     # further out
-        near = self._point(40.7022775, -74.0141854, ['WALK'])
-        for points in ([far, near], [near, far]):
-            got = extract_entrance(
-                {'destinations': [{'navigationPoints': points}]},
-                self.PLACE, self.CENTROID)
-            assert got == (40.7022775, -74.0141854, 'walk_navigation_point')
-
-    def test_drive_only_points_are_never_chosen(self):
-        """State Street is the closest point on The Battery but is DRIVE only."""
-        got = extract_entrance(
-            {'destinations': [{'navigationPoints': [
-                self._point(40.7035, -74.0150, ['DRIVE']),      # closer
-                self._point(40.7022775, -74.0141854, ['WALK']),  # further
-            ]}]},
-            self.PLACE, self.CENTROID)
-        assert got == (40.7022775, -74.0141854, 'walk_navigation_point')
+class TestStructureType:
+    def test_structure_type_read_from_primary(self):
+        result = {'destinations': [{'primary': {'structureType': 'GROUNDS'}}]}
+        assert extract_structure_type(result) == 'GROUNDS'
+        assert extract_structure_type({}) is None
+        assert extract_structure_type({'destinations': [{'primary': {}}]}) is None
