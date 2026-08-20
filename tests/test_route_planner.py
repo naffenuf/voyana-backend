@@ -240,3 +240,36 @@ class TestShiftLimits:
     def test_explicit_override_wins_for_every_type(self):
         for structure in ('POINT', 'BUILDING', 'GROUNDS', None):
             assert self._limit(structure, override=42.0) == 42.0
+
+
+class TestNavigationPointChoice:
+    """
+    Large sites return many perimeter access points in arbitrary order, so the
+    nearest walkable one must win rather than whichever is listed first.
+    """
+
+    PLACE = 'ChIJbattery'
+    CENTROID = (40.702901, -74.0153199)
+
+    def _point(self, lat, lng, modes):
+        return {'location': {'latitude': lat, 'longitude': lng},
+                'travelModes': modes}
+
+    def test_nearest_walkable_point_wins_regardless_of_order(self):
+        far = self._point(40.7050, -74.0180, ['WALK'])     # further out
+        near = self._point(40.7022775, -74.0141854, ['WALK'])
+        for points in ([far, near], [near, far]):
+            got = extract_entrance(
+                {'destinations': [{'navigationPoints': points}]},
+                self.PLACE, self.CENTROID)
+            assert got == (40.7022775, -74.0141854, 'walk_navigation_point')
+
+    def test_drive_only_points_are_never_chosen(self):
+        """State Street is the closest point on The Battery but is DRIVE only."""
+        got = extract_entrance(
+            {'destinations': [{'navigationPoints': [
+                self._point(40.7035, -74.0150, ['DRIVE']),      # closer
+                self._point(40.7022775, -74.0141854, ['WALK']),  # further
+            ]}]},
+            self.PLACE, self.CENTROID)
+        assert got == (40.7022775, -74.0141854, 'walk_navigation_point')

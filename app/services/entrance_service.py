@@ -135,12 +135,14 @@ def extract_entrance(result: dict, place_id: str, centroid):
         source = 'preferred_entrance' if preferred else 'entrance'
         return (*_coords(best), source)
 
-    for point in destination.get('navigationPoints') or []:
-        if 'WALK' not in (point.get('travelModes') or []):
-            continue
-        coords = _coords(point)
-        if coords:
-            return (*coords, 'walk_navigation_point')
+    # A large site returns many perimeter access points - The Battery has
+    # eight walkable ones spread from 118m to 284m out. List order is
+    # arbitrary, so take the nearest rather than whichever came first.
+    walkable = [p for p in (destination.get('navigationPoints') or [])
+                if 'WALK' in (p.get('travelModes') or []) and _coords(p)]
+    if walkable:
+        best = min(walkable, key=lambda p: _distance(centroid, _coords(p)))
+        return (*_coords(best), 'walk_navigation_point')
 
     return None
 

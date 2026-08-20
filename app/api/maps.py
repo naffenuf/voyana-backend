@@ -27,12 +27,15 @@ def _entrance_for(latitude, longitude):
     """
     from app.models.site import Site
 
+    # Two sites in the same building can both fall inside the box; order by id
+    # so the same request always resolves to the same site.
     site = (Site.query
             .filter(Site.entrance_lat.isnot(None))
             .filter(Site.latitude.between(latitude - _SITE_MATCH_EPSILON,
                                           latitude + _SITE_MATCH_EPSILON))
             .filter(Site.longitude.between(longitude - _SITE_MATCH_EPSILON,
                                            longitude + _SITE_MATCH_EPSILON))
+            .order_by(Site.id)
             .first())
     if site:
         return (site.entrance_lat, site.entrance_lng)
