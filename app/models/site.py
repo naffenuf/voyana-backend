@@ -45,6 +45,15 @@ class Site(db.Model):
     # Google Places integration
     place_id = db.Column(db.String(255), index=True)
     formatted_address = db.Column(db.Text)
+
+    # Routing coordinate from Geocoding v4 SearchDestinations. The stored
+    # latitude/longitude remain the display position (building centroid);
+    # routing uses the entrance when present. entrance_source records which
+    # response field supplied it ('preferred_entrance', 'sole_entrance',
+    # 'walk_navigation_point').
+    entrance_lat = db.Column(db.Float)
+    entrance_lng = db.Column(db.Float)
+    entrance_source = db.Column(db.String(50))
     types = db.Column(ARRAY(db.String(50)))
     user_ratings_total = db.Column(db.Integer)
     phone_number = db.Column(db.Text)
@@ -92,6 +101,9 @@ class Site(db.Model):
             'neighborhood': self.neighborhood,
             'placeId': self.place_id,
             'formatted_address': self.formatted_address,  # snake_case for iOS decoder
+            'entranceLat': self.entrance_lat,
+            'entranceLng': self.entrance_lng,
+            'entranceSource': self.entrance_source,
             'types': self.types or [],
             'user_ratings_total': self.user_ratings_total,  # snake_case for iOS decoder
             'phone_number': self.phone_number,  # snake_case for iOS decoder

@@ -385,6 +385,8 @@ def register_security_headers(app):
 
 def register_cli_commands(app):
     """Register Flask CLI commands."""
+    from app.cli_route_planning import register_route_planning_commands
+    register_route_planning_commands(app)
 
     @app.cli.command()
     def seed_dev_data():

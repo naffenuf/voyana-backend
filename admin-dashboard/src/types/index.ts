@@ -87,6 +87,11 @@ export interface Site {
   rating: number | null;
   placeId: string | null;
   formatted_address: string | null;
+  // Routing coordinate from Geocoding v4; null until update-entrances runs.
+  // latitude/longitude remain the display position (building centroid).
+  entranceLat: number | null;
+  entranceLng: number | null;
+  entranceSource: string | null;
   types: string[];
   user_ratings_total: number | null;
   phone_number: string | null;

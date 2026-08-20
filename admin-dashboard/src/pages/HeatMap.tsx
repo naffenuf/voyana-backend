@@ -1,14 +1,52 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, Fragment } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { MapContainer, TileLayer, Circle, Tooltip, Marker, useMapEvents, useMap, ZoomControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Circle, Tooltip, Marker, Polyline, useMapEvents, useMap, ZoomControl } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet.heat';
 import { adminToursApi, toursApi } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { calculateTourRadius, calculateTourCenter, tourIntersectsBounds } from '../lib/geospatial';
-import { MapPin, Filter, X } from 'lucide-react';
-import type { Tour } from '../types';
+import { calculateTourRadius, calculateTourCenter, tourIntersectsBounds, haversineDistance } from '../lib/geospatial';
+import { MapPin, Filter, X, DoorOpen } from 'lucide-react';
+import type { Tour, Site } from '../types';
+
+// Shift thresholds for entrance review, in metres. The red band matches the
+// --max-shift default of update-entrances: those are NOT auto-applied and
+// need to be signed off individually.
+const SHIFT_MINOR_M = 25;
+const SHIFT_REVIEW_M = 150;
+
+function shiftColor(meters: number): string {
+  if (meters > SHIFT_REVIEW_M) return '#EF4444'; // red: needs sign-off
+  if (meters > SHIFT_MINOR_M) return '#F59E0B';  // amber: worth a look
+  return '#10B981';                              // green: routine
+}
+
+interface EntranceShift {
+  site: Site;
+  centroid: [number, number];
+  entrance: [number, number];
+  meters: number;
+}
+
+/** Sites in the given tours that have an entrance differing from the centroid. */
+function collectEntranceShifts(tours: TourWithRadius[]): EntranceShift[] {
+  const shifts: EntranceShift[] = [];
+  for (const tour of tours) {
+    for (const site of tour.sites ?? []) {
+      if (site.entranceLat == null || site.entranceLng == null) continue;
+      shifts.push({
+        site,
+        centroid: [site.latitude, site.longitude],
+        entrance: [site.entranceLat, site.entranceLng],
+        meters: haversineDistance(
+          site.latitude, site.longitude, site.entranceLat, site.entranceLng
+        ),
+      });
+    }
+  }
+  return shifts;
+}
 
 // Extend Leaflet types for heat layer
 declare module 'leaflet' {
@@ -141,6 +179,7 @@ export default function HeatMap() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [showFilters, setShowFilters] = useState(false);
+  const [showEntrances, setShowEntrances] = useState(false);
   const [hoveredTourId, setHoveredTourId] = useState<string | null>(null);
   const [hoveredSiteId, setHoveredSiteId] = useState<string | null>(null);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -228,6 +267,22 @@ export default function HeatMap() {
     return Array.from(uniqueNeighborhoods).sort();
   }, [toursData, cityFilter]);
 
+  // Entrance shifts for the tours currently in view
+  const entranceShifts = useMemo(
+    () => (showEntrances ? collectEntranceShifts(visibleTours) : []),
+    [showEntrances, visibleTours]
+  );
+
+  // Total sites in view, to show how much entrance coverage exists
+  const visibleSiteCount = useMemo(
+    () => visibleTours.reduce((n, t) => n + (t.sites?.length ?? 0), 0),
+    [visibleTours]
+  );
+
+  const needsReviewCount = entranceShifts.filter(
+    (s) => s.meters > SHIFT_REVIEW_M
+  ).length;
+
   // Default map center (will be overridden by AutoFitBounds or saved position)
   const defaultCenter: [number, number] = [40.7128, -74.006]; // NYC fallback
 
@@ -258,6 +313,25 @@ export default function HeatMap() {
               </span>
             )}
           </div>
+
+          {/* Entrances toggle */}
+          <button
+            onClick={() => setShowEntrances(!showEntrances)}
+            title="Show building entrances alongside site centroids"
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              showEntrances
+                ? 'bg-[#8B6F47] text-white'
+                : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <DoorOpen className="w-4 h-4" />
+            Entrances
+            {showEntrances && (
+              <span className="text-xs opacity-90">
+                ({entranceShifts.length}/{visibleSiteCount})
+              </span>
+            )}
+          </button>
 
           {/* Filters toggle */}
           <button
@@ -359,6 +433,47 @@ export default function HeatMap() {
         </div>
       )}
 
+      {/* Entrance legend */}
+      {showEntrances && (
+        <div className="absolute bottom-6 left-6 z-[1000] bg-white rounded-xl shadow-lg border border-gray-200 p-4 w-64">
+          <h3 className="font-semibold text-gray-900 mb-2 text-sm">
+            Centroid &rarr; Entrance
+          </h3>
+          {entranceShifts.length === 0 ? (
+            <p className="text-xs text-gray-500">
+              No entrance data yet for tours in view. Run{' '}
+              <code className="bg-gray-100 px-1 rounded">update-entrances</code>{' '}
+              to populate it.
+            </p>
+          ) : (
+            <div className="space-y-1.5 text-xs text-gray-700">
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#10B981' }} />
+                under {SHIFT_MINOR_M}m &mdash; routine
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#F59E0B' }} />
+                {SHIFT_MINOR_M}&ndash;{SHIFT_REVIEW_M}m &mdash; worth a look
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#EF4444' }} />
+                over {SHIFT_REVIEW_M}m &mdash; needs sign-off
+              </div>
+              <div className="flex items-center gap-2 pt-1">
+                <span className="w-3 h-3 rounded-full border-2 border-gray-400 bg-white" />
+                original centroid
+              </div>
+              {needsReviewCount > 0 && (
+                <p className="pt-2 text-[11px] text-red-600 font-medium">
+                  {needsReviewCount} site{needsReviewCount === 1 ? '' : 's'} over{' '}
+                  {SHIFT_REVIEW_M}m will be skipped by --apply
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Map Container */}
       <div className="w-full h-full">
         {isLoading ? (
@@ -445,6 +560,72 @@ export default function HeatMap() {
                     </div>
                   </Tooltip>
                 </Circle>
+              );
+            })}
+
+            {/* Entrance overlay: centroid, entrance, and the shift between */}
+            {showEntrances && entranceShifts.map(({ site, centroid, entrance, meters }) => {
+              const color = shiftColor(meters);
+              const centroidIcon = L.divIcon({
+                className: 'entrance-centroid-marker',
+                html: `<div style="
+                  width: 9px; height: 9px;
+                  background-color: white;
+                  border: 2px solid #9CA3AF;
+                  border-radius: 50%;
+                "></div>`,
+                iconSize: [9, 9],
+                iconAnchor: [4.5, 4.5],
+              });
+              const entranceIcon = L.divIcon({
+                className: 'entrance-marker',
+                html: `<div style="
+                  width: 13px; height: 13px;
+                  background-color: ${color};
+                  border: 2px solid white;
+                  border-radius: 50%;
+                  box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+                "></div>`,
+                iconSize: [13, 13],
+                iconAnchor: [6.5, 6.5],
+              });
+
+              const label = (
+                <Tooltip direction="top" offset={[0, -8]} opacity={0.9}>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}>
+                    <strong className="font-semibold">{site.title}</strong>
+                    <div className="text-xs mt-1" style={{ color }}>
+                      shifted {Math.round(meters)}m
+                    </div>
+                    {site.entranceSource && (
+                      <div className="text-xs text-gray-500">
+                        {site.entranceSource.replace(/_/g, ' ')}
+                      </div>
+                    )}
+                  </div>
+                </Tooltip>
+              );
+
+              return (
+                <Fragment key={`entrance-${site.id}`}>
+                  <Polyline
+                    positions={[centroid, entrance]}
+                    pathOptions={{ color, weight: 2, opacity: 0.8, dashArray: '4 3' }}
+                  />
+                  <Marker position={centroid} icon={centroidIcon}>
+                    <Tooltip direction="top" offset={[0, -8]} opacity={0.9}>
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.9)' }}>
+                        <strong className="font-semibold">{site.title}</strong>
+                        <div className="text-xs text-gray-500 mt-1">
+                          original centroid
+                        </div>
+                      </div>
+                    </Tooltip>
+                  </Marker>
+                  <Marker position={entrance} icon={entranceIcon}>
+                    {label}
+                  </Marker>
+                </Fragment>
               );
             })}
 

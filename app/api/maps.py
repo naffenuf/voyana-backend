@@ -9,6 +9,35 @@ from app.utils.device_binding import device_binding_required, get_device_id_for_
 
 maps_bp = Blueprint('maps', __name__)
 
+# Coordinates within this box of a site's stored centroid are treated as that
+# site. ~0.00005 degrees is roughly 5 metres - tight enough not to grab a
+# neighbouring site, loose enough to absorb float round-tripping.
+_SITE_MATCH_EPSILON = 0.00005
+
+
+def _entrance_for(latitude, longitude):
+    """
+    Swap a site centroid for its known entrance.
+
+    The app sends raw coordinates (no site IDs), and those coordinates are the
+    centroids this API served it - so a near-exact match against sites
+    identifies the destination. Sites without entrance data, and coordinates
+    that match no site (e.g. fixed-direction trigger points), pass through
+    unchanged. Never applied to the origin: the user's GPS position is truth.
+    """
+    from app.models.site import Site
+
+    site = (Site.query
+            .filter(Site.entrance_lat.isnot(None))
+            .filter(Site.latitude.between(latitude - _SITE_MATCH_EPSILON,
+                                          latitude + _SITE_MATCH_EPSILON))
+            .filter(Site.longitude.between(longitude - _SITE_MATCH_EPSILON,
+                                           longitude + _SITE_MATCH_EPSILON))
+            .first())
+    if site:
+        return (site.entrance_lat, site.entrance_lng)
+    return (latitude, longitude)
+
 
 @maps_bp.route('/route', methods=['POST'])
 @device_binding_required()
@@ -75,6 +104,15 @@ def get_route():
 
         mode = data.get('mode', 'walking')
         optimize_flag = data.get('optimize', True)
+
+        # Route walkers to building entrances rather than centroids.
+        if mode == 'walking':
+            destination = _entrance_for(*destination)
+            waypoints = [
+                {**wp, 'latitude': lat, 'longitude': lng}
+                for wp in waypoints
+                for lat, lng in [_entrance_for(wp['latitude'], wp['longitude'])]
+            ]
 
         current_app.logger.info(f"Route request: {mode} mode, {len(waypoints)} waypoints")
 
