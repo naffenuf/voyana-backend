@@ -129,51 +129,78 @@ class TestStartScoring:
 
 
 class TestExtractEntrance:
-    def _response(self, primary):
-        return {'destinations': [{'primary': primary}]}
+    """
+    Response shapes follow the live Geocoding v4 contract: entrances and
+    navigationPoints are siblings of primary, and each entrance names the
+    place it serves.
+    """
 
-    def test_preferred_entrance_wins(self):
-        result = self._response({
-            'entrances': [
-                {'location': {'latitude': 1.0, 'longitude': 2.0}},
-                {'location': {'latitude': 3.0, 'longitude': 4.0},
-                 'tags': ['PREFERRED']},
-            ],
-            'navigationPoints': [
-                {'location': {'latitude': 9.0, 'longitude': 9.0},
-                 'travelModes': ['WALK']},
-            ],
-        })
-        assert extract_entrance(result) == (3.0, 4.0, 'preferred_entrance')
+    PLACE = 'ChIJtest'
+    CENTROID = (40.7000, -74.0000)
 
-    def test_sole_untagged_entrance_used(self):
-        result = self._response({
-            'entrances': [{'location': {'latitude': 1.0, 'longitude': 2.0}}],
-        })
-        assert extract_entrance(result) == (1.0, 2.0, 'sole_entrance')
+    def _response(self, **destination):
+        destination.setdefault('primary', {'location': {
+            'latitude': self.CENTROID[0], 'longitude': self.CENTROID[1]}})
+        return {'destinations': [destination]}
 
-    def test_multiple_untagged_entrances_fall_through_to_walk_point(self):
-        result = self._response({
-            'entrances': [
-                {'location': {'latitude': 1.0, 'longitude': 2.0}},
-                {'location': {'latitude': 3.0, 'longitude': 4.0}},
-            ],
-            'navigationPoints': [
-                {'location': {'latitude': 5.0, 'longitude': 6.0},
-                 'travelModes': ['DRIVE']},
-                {'location': {'latitude': 7.0, 'longitude': 8.0},
-                 'travelModes': ['DRIVE', 'WALK']},
-            ],
-        })
-        assert extract_entrance(result) == (7.0, 8.0, 'walk_navigation_point')
+    def _loc(self, lat, lng, **extra):
+        return {'location': {'latitude': lat, 'longitude': lng},
+                'place': f'places/{self.PLACE}', **extra}
 
-    def test_nothing_useful_returns_none(self):
-        assert extract_entrance({}) is None
-        assert extract_entrance({'destinations': []}) is None
-        assert extract_entrance(self._response({})) is None
-        assert extract_entrance(self._response({
-            'navigationPoints': [
-                {'location': {'latitude': 5.0, 'longitude': 6.0},
-                 'travelModes': ['DRIVE']},
-            ],
-        })) is None
+    def test_preferred_entrance_wins_over_plain_and_nav_point(self):
+        result = self._response(
+            entrances=[self._loc(40.7001, -74.0001),
+                       self._loc(40.7002, -74.0002, tags=['PREFERRED'])],
+            navigationPoints=[{'location': {'latitude': 40.9, 'longitude': -74.9},
+                               'travelModes': ['WALK']}],
+        )
+        lat, lng, source = extract_entrance(result, self.PLACE, self.CENTROID)
+        assert (round(lat, 4), round(lng, 4)) == (40.7002, -74.0002)
+        assert source == 'preferred_entrance'
+
+    def test_multiple_preferred_picks_nearest_to_centroid(self):
+        """A place can tag several entrances PREFERRED; choice must be stable
+        and minimal rather than dependent on list order."""
+        far = self._loc(40.7050, -74.0050, tags=['PREFERRED'])
+        near = self._loc(40.7001, -74.0001, tags=['PREFERRED'])
+        for entrances in ([far, near], [near, far]):
+            lat, lng, source = extract_entrance(
+                self._response(entrances=entrances), self.PLACE, self.CENTROID)
+            assert (round(lat, 4), round(lng, 4)) == (40.7001, -74.0001)
+            assert source == 'preferred_entrance'
+
+    def test_other_tenants_entrance_is_ignored(self):
+        """Shared buildings return neighbours' doors too; those are worse than
+        the centroid and must not be used."""
+        result = self._response(entrances=[
+            {'location': {'latitude': 40.7001, 'longitude': -74.0001},
+             'tags': ['PREFERRED'], 'place': 'places/ChIJsomeoneelse'},
+        ])
+        assert extract_entrance(result, self.PLACE, self.CENTROID) is None
+
+    def test_untagged_entrance_used_when_none_preferred(self):
+        result = self._response(entrances=[self._loc(40.7001, -74.0001)])
+        lat, lng, source = extract_entrance(result, self.PLACE, self.CENTROID)
+        assert source == 'entrance'
+        assert (round(lat, 4), round(lng, 4)) == (40.7001, -74.0001)
+
+    def test_falls_back_to_walk_navigation_point(self):
+        result = self._response(navigationPoints=[
+            {'location': {'latitude': 40.71, 'longitude': -74.01},
+             'travelModes': ['DRIVE']},
+            {'location': {'latitude': 40.72, 'longitude': -74.02},
+             'travelModes': ['DRIVE', 'WALK']},
+        ])
+        assert extract_entrance(result, self.PLACE, self.CENTROID) == (
+            40.72, -74.02, 'walk_navigation_point')
+
+    def test_point_type_place_with_no_entrance_data(self):
+        """Most small venues are structureType POINT and carry nothing."""
+        assert extract_entrance({}, self.PLACE, self.CENTROID) is None
+        assert extract_entrance({'destinations': []}, self.PLACE, self.CENTROID) is None
+        assert extract_entrance(self._response(), self.PLACE, self.CENTROID) is None
+        assert extract_entrance(
+            self._response(navigationPoints=[
+                {'location': {'latitude': 40.71, 'longitude': -74.01},
+                 'travelModes': ['DRIVE']}]),
+            self.PLACE, self.CENTROID) is None

@@ -17,11 +17,13 @@ logger = logging.getLogger(__name__)
 
 SEARCH_DESTINATIONS_URL = 'https://geocode.googleapis.com/v4/geocode/destinations'
 
-# Only the fields needed to pick an entrance.
+# Only the fields needed to pick an entrance. Note that entrances and
+# navigationPoints are siblings of primary, not nested inside it - asking for
+# them under primary is rejected as an invalid argument.
 FIELD_MASK = (
     'destinations.primary.location,'
-    'destinations.primary.entrances,'
-    'destinations.primary.navigationPoints'
+    'destinations.entrances,'
+    'destinations.navigationPoints'
 )
 
 REQUEST_TIMEOUT_SECONDS = 15
@@ -64,38 +66,70 @@ def fetch_destination(api_key: str, place_id: str) -> dict:
     return response.json()
 
 
-def extract_entrance(result: dict):
+def _coords(obj):
+    """Pull (lat, lng) out of a location field, or None if incomplete."""
+    location = (obj or {}).get('location') or {}
+    if 'latitude' in location and 'longitude' in location:
+        return (location['latitude'], location['longitude'])
+    return None
+
+
+def _belongs_to(entrance, place_id: str) -> bool:
+    """
+    Whether an entrance is this place's own.
+
+    A response can include every entrance on a shared building, including
+    other tenants' doors. Each entrance carries the place it serves, so
+    anything naming a different place is discarded - a neighbour's door is
+    worse than the centroid. Entrances with no place named are kept.
+    """
+    place = entrance.get('place')
+    return not place or place.split('/')[-1] == place_id
+
+
+def extract_entrance(result: dict, place_id: str, centroid):
     """
     Pick the best routing coordinate from a SearchDestinations response.
 
     Preference order:
       1. An entrance tagged PREFERRED (the main entrance).
-      2. The only entrance, when exactly one is returned.
+      2. Any other entrance belonging to this place.
       3. A navigation point that supports WALK.
 
-    Returns (latitude, longitude, source) or None when the response offers
-    nothing better than the centroid. Multiple untagged entrances are treated
-    as ambiguous rather than guessed between.
+    `centroid` is the site's stored (lat, lng), used to break ties: a place
+    can return several entrances all tagged PREFERRED, so the nearest one is
+    chosen for a stable, minimal shift rather than depending on list order.
+
+    Returns (latitude, longitude, source), or None when the response offers
+    nothing better than the centroid.
     """
     destinations = result.get('destinations') or []
     if not destinations:
         return None
-    primary = destinations[0].get('primary') or {}
+    destination = destinations[0]
 
-    entrances = primary.get('entrances') or []
+    entrances = [e for e in (destination.get('entrances') or [])
+                 if _coords(e) and _belongs_to(e, place_id)]
+
     preferred = [e for e in entrances if 'PREFERRED' in (e.get('tags') or [])]
-    candidates = preferred or (entrances if len(entrances) == 1 else [])
-    for entrance in candidates:
-        location = entrance.get('location') or {}
-        if 'latitude' in location and 'longitude' in location:
-            source = 'preferred_entrance' if preferred else 'sole_entrance'
-            return (location['latitude'], location['longitude'], source)
+    candidates = preferred or entrances
+    if candidates:
+        best = min(candidates,
+                   key=lambda e: _distance(centroid, _coords(e)))
+        source = 'preferred_entrance' if preferred else 'entrance'
+        return (*_coords(best), source)
 
-    for point in primary.get('navigationPoints') or []:
+    for point in destination.get('navigationPoints') or []:
         if 'WALK' not in (point.get('travelModes') or []):
             continue
-        location = point.get('location') or {}
-        if 'latitude' in location and 'longitude' in location:
-            return (location['latitude'], location['longitude'], 'walk_navigation_point')
+        coords = _coords(point)
+        if coords:
+            return (*coords, 'walk_navigation_point')
 
     return None
+
+
+def _distance(a, b) -> float:
+    """Straight-line metres between two (lat, lng) pairs."""
+    from app.services.route_planner import haversine
+    return haversine(a, b)

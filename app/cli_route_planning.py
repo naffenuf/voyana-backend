@@ -205,7 +205,8 @@ def register_route_planning_commands(app):
                 cache[site.place_id] = {'status': 'error', 'error': str(e)}
                 continue
 
-            entrance = entrance_service.extract_entrance(raw)
+            entrance = entrance_service.extract_entrance(
+                raw, site.place_id, (site.latitude, site.longitude))
             if entrance:
                 lat, lng, source = entrance
                 cache[site.place_id] = {
