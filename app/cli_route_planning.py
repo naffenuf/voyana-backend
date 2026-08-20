@@ -39,9 +39,24 @@ ROUTE_PROPOSAL_CSV_KEY = f'{S3_PREFIX}/route_proposal.csv'
 # session loses at most one batch.
 CACHE_FLUSH_EVERY = 25
 
-# Entrance shifts above this (metres) are not auto-applied; they are usually
-# legitimately large places, but deserve a human look.
-DEFAULT_MAX_SHIFT_M = 150.0
+# Entrance shifts above these (metres) are not auto-applied and are flagged
+# for a human look. The limit depends on how big the place is: a memorial
+# plaza or park (GROUNDS) legitimately has entrances hundreds of metres from
+# its centroid, while the same shift on a single POINT means something is
+# wrong. A single flat threshold cannot tell those apart.
+SHIFT_LIMITS_M = {
+    'POINT': 100.0,
+    'BUILDING': 200.0,
+    'GROUNDS': 500.0,
+}
+DEFAULT_MAX_SHIFT_M = 150.0  # structure type unknown
+
+
+def _shift_limit(structure_type, override):
+    """Metres of shift tolerated before a site is flagged for review."""
+    if override is not None:
+        return override
+    return SHIFT_LIMITS_M.get(structure_type, DEFAULT_MAX_SHIFT_M)
 
 
 # ---------------------------------------------------------------------------
@@ -174,9 +189,10 @@ def register_route_planning_commands(app):
                   help='Write cached results to the database (no API calls).')
     @click.option('--limit', type=int, default=None,
                   help='Only process this many sites (spot-checking).')
-    @click.option('--max-shift', type=float, default=DEFAULT_MAX_SHIFT_M,
-                  help='Auto-apply threshold in metres; larger shifts are '
-                       'skipped unless passed via --site-id.')
+    @click.option('--max-shift', type=float, default=None,
+                  help='Override the per-structure-type flag thresholds with '
+                       'one value in metres. Flagged sites are skipped unless '
+                       'passed via --site-id.')
     @click.option('--site-id', 'site_ids', multiple=True,
                   help='Force-apply these site IDs regardless of shift.')
     @click.option('--refresh', is_flag=True,
@@ -185,14 +201,24 @@ def register_route_planning_commands(app):
     def update_entrances(apply_, limit, max_shift, site_ids, refresh, yes):
         """Look up building entrances for sites (dry run by default)."""
         _quiet_logs()
+        from app import db
         from app.models.site import Site
         from app.services.route_planner import haversine
         from app.services import entrance_service
 
+        from app.models.tour import TourSite
+
         cache = _s3_read_json(ENTRANCE_CACHE_KEY, {})
         sites = (Site.query.filter(Site.place_id.isnot(None))
                  .order_by(Site.title).all())
+
+        # Sites without a place_id can never get an entrance, so report how
+        # many of them any tour actually uses - orphans do not matter.
         skipped_no_place_id = Site.query.filter(Site.place_id.is_(None)).count()
+        no_place_id_in_tours = (
+            Site.query.filter(Site.place_id.is_(None))
+            .filter(Site.id.in_(db.session.query(TourSite.site_id)))
+            .count())
         if limit:
             sites = sites[:limit]
 
@@ -223,13 +249,16 @@ def register_route_planning_commands(app):
 
             entrance = entrance_service.extract_entrance(
                 raw, site.place_id, (site.latitude, site.longitude))
+            structure = entrance_service.extract_structure_type(raw)
             if entrance:
                 lat, lng, source = entrance
                 cache[site.place_id] = {
                     'status': 'ok', 'lat': lat, 'lng': lng, 'source': source,
+                    'structure': structure,
                 }
             else:
-                cache[site.place_id] = {'status': 'no_data'}
+                cache[site.place_id] = {'status': 'no_data',
+                                        'structure': structure}
 
             fetched += 1
             since_flush += 1
@@ -256,13 +285,17 @@ def register_route_planning_commands(app):
                 continue
             shift = haversine((site.latitude, site.longitude),
                               (entry['lat'], entry['lng']))
+            limit_m = _shift_limit(entry.get('structure'), max_shift)
             rows.append({
                 'site_id': str(site.id),
                 'title': site.title,
                 'old_lat': site.latitude, 'old_lng': site.longitude,
                 'new_lat': entry['lat'], 'new_lng': entry['lng'],
                 'source': entry['source'],
+                'structure': entry.get('structure') or '',
                 'shift_m': round(shift, 1),
+                'limit_m': round(limit_m),
+                'flagged': shift > limit_m,
             })
         rows.sort(key=lambda r: -r['shift_m'])
 
@@ -273,18 +306,23 @@ def register_route_planning_commands(app):
         writer.writerows(rows)
         url = _s3_write(ENTRANCE_PROPOSAL_KEY, buffer.getvalue(), 'text/csv')
 
-        flagged = [r for r in rows if r['shift_m'] > max_shift]
+        flagged = [r for r in rows if r['flagged']]
         print(f'\nSites with place_id: {len(sites)}'
               f'  (fetched this run: {fetched},'
-              f' without place_id: {skipped_no_place_id})')
+              f' without place_id: {skipped_no_place_id}'
+              f' of which {no_place_id_in_tours} are used in tours)')
         print(f'Entrance found: {len(rows)}   no data: {no_data}   errors: {errors}')
-        print(f'Within {max_shift:.0f}m (auto-applies): {len(rows) - len(flagged)}'
+        print(f'Auto-applies: {len(rows) - len(flagged)}'
               f'   flagged for review: {len(flagged)}')
         print(f'\nProposal: {url}')
         if rows:
-            print(f'\nLargest shifts:')
+            print(f'\nLargest shifts '
+                  f'(limit varies by structure type; * = flagged):')
             for r in rows[:15]:
-                print(f"  {r['shift_m']:7.1f}m  {r['source']:22s}  {r['title'][:44]}")
+                mark = '*' if r['flagged'] else ' '
+                print(f"{mark} {r['shift_m']:7.1f}m /{r['limit_m']:4d}m  "
+                      f"{r['structure'] or '?':9s} {r['source']:22s}  "
+                      f"{r['title'][:40]}")
         print('\nDry run only - nothing written. Re-run with --apply to write.')
 
     def _apply_entrances(sites, cache, max_shift, forced_ids, yes):
@@ -301,9 +339,11 @@ def register_route_planning_commands(app):
                 continue
             shift = haversine((site.latitude, site.longitude),
                               (entry['lat'], entry['lng']))
-            if shift > max_shift and str(site.id) not in forced_ids:
+            limit_m = _shift_limit(entry.get('structure'), max_shift)
+            if shift > limit_m and str(site.id) not in forced_ids:
                 skipped_flagged += 1
-                print(f'  SKIPPED ({shift:.0f}m > {max_shift:.0f}m): {site.title}')
+                print(f"  SKIPPED ({shift:.0f}m > {limit_m:.0f}m for "
+                      f"{entry.get('structure') or 'unknown'}): {site.title}")
                 continue
             site.entrance_lat = entry['lat']
             site.entrance_lng = entry['lng']

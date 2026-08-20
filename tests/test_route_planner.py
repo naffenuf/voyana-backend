@@ -14,7 +14,7 @@ from app.services.route_planner import (
     _solve_brute_force,
     _solve_held_karp,
 )
-from app.services.entrance_service import extract_entrance
+from app.services.entrance_service import extract_entrance, extract_structure_type
 
 
 def random_matrix(n, seed):
@@ -194,6 +194,13 @@ class TestExtractEntrance:
         assert extract_entrance(result, self.PLACE, self.CENTROID) == (
             40.72, -74.02, 'walk_navigation_point')
 
+    def test_structure_type_read_from_primary(self):
+        result = self._response()
+        result['destinations'][0]['primary']['structureType'] = 'GROUNDS'
+        assert extract_structure_type(result) == 'GROUNDS'
+        assert extract_structure_type({}) is None
+        assert extract_structure_type(self._response()) is None
+
     def test_point_type_place_with_no_entrance_data(self):
         """Most small venues are structureType POINT and carry nothing."""
         assert extract_entrance({}, self.PLACE, self.CENTROID) is None
@@ -204,3 +211,32 @@ class TestExtractEntrance:
                 {'location': {'latitude': 40.71, 'longitude': -74.01},
                  'travelModes': ['DRIVE']}]),
             self.PLACE, self.CENTROID) is None
+
+
+class TestShiftLimits:
+    """
+    A large shift is only suspicious relative to how big the place is: a
+    memorial plaza's entrance is legitimately far from its centroid.
+    """
+
+    def _limit(self, structure, override=None):
+        from app.cli_route_planning import _shift_limit
+        return _shift_limit(structure, override)
+
+    def test_limit_scales_with_structure_type(self):
+        assert self._limit('POINT') < self._limit('BUILDING') < self._limit('GROUNDS')
+
+    def test_grounds_tolerates_a_shift_that_would_flag_a_point(self):
+        """The WTC memorial case: ~209m is expected on GROUNDS, wrong on POINT."""
+        shift = 209.4
+        assert shift <= self._limit('GROUNDS')
+        assert shift > self._limit('POINT')
+
+    def test_unknown_structure_falls_back_to_default(self):
+        from app.cli_route_planning import DEFAULT_MAX_SHIFT_M
+        assert self._limit(None) == DEFAULT_MAX_SHIFT_M
+        assert self._limit('SOMETHING_NEW') == DEFAULT_MAX_SHIFT_M
+
+    def test_explicit_override_wins_for_every_type(self):
+        for structure in ('POINT', 'BUILDING', 'GROUNDS', None):
+            assert self._limit(structure, override=42.0) == 42.0

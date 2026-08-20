@@ -22,6 +22,7 @@ SEARCH_DESTINATIONS_URL = 'https://geocode.googleapis.com/v4/geocode/destination
 # them under primary is rejected as an invalid argument.
 FIELD_MASK = (
     'destinations.primary.location,'
+    'destinations.primary.structureType,'
     'destinations.entrances,'
     'destinations.navigationPoints'
 )
@@ -64,6 +65,21 @@ def fetch_destination(api_key: str, place_id: str) -> dict:
 
     response.raise_for_status()
     return response.json()
+
+
+def extract_structure_type(result: dict):
+    """
+    How big the place is: 'POINT', 'BUILDING', or 'GROUNDS'.
+
+    This is what makes a large shift interpretable. A GROUNDS place - a park,
+    campus, or memorial plaza - legitimately has entrances hundreds of metres
+    from its centroid, while the same shift on a POINT storefront means
+    something went wrong. Returns None when the response does not say.
+    """
+    destinations = result.get('destinations') or []
+    if not destinations:
+        return None
+    return (destinations[0].get('primary') or {}).get('structureType')
 
 
 def _coords(obj):
