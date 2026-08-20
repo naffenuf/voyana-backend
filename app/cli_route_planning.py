@@ -82,6 +82,20 @@ def _s3_write_json(key, data):
     return _s3_write(key, json.dumps(data, indent=1), 'application/json')
 
 
+def _quiet_logs():
+    """
+    Silence third-party DEBUG chatter.
+
+    These commands run under the Flask CLI, which loads DevelopmentConfig and
+    its DEBUG logging. botocore and urllib3 then emit tens of lines per S3 or
+    Google call, which buries the report in a run of a thousand sites.
+    """
+    import logging as _logging
+    for name in ('botocore', 'boto3', 'urllib3', 's3transfer',
+                 'app.services.s3_service'):
+        _logging.getLogger(name).setLevel(_logging.WARNING)
+
+
 def _confirm_database(yes):
     """Show which database is about to be written and ask before continuing."""
     uri = current_app.config.get('SQLALCHEMY_DATABASE_URI') or ''
@@ -104,6 +118,7 @@ def register_route_planning_commands(app):
     @app.cli.command('check-google-apis')
     def check_google_apis():
         """Probe the Google services the planning commands depend on."""
+        _quiet_logs()
         import hashlib
         import requests as rq
         from app.models.site import Site
@@ -169,6 +184,7 @@ def register_route_planning_commands(app):
     @click.option('--yes', is_flag=True, help='Skip the write confirmation.')
     def update_entrances(apply_, limit, max_shift, site_ids, refresh, yes):
         """Look up building entrances for sites (dry run by default)."""
+        _quiet_logs()
         from app.models.site import Site
         from app.services.route_planner import haversine
         from app.services import entrance_service
@@ -321,6 +337,7 @@ def register_route_planning_commands(app):
     @click.option('--yes', is_flag=True, help='Skip the write confirmation.')
     def plan_routes(apply_, tour_ids, limit, use_haversine, refresh, yes):
         """Choose start sites and optimal walking order (dry run by default)."""
+        _quiet_logs()
         from app.models.tour import Tour
 
         if apply_:
